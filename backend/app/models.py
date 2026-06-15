@@ -90,6 +90,31 @@ class DataSyncLog(SQLModel, table=True):
     message: Optional[str] = None
     created_at: datetime = Field(default_factory=datetime.utcnow)
 
+class Role(SQLModel, table=True):
+    id: Optional[int] = Field(default=None, primary_key=True)
+    name: str = Field(unique=True, index=True)
+    description: Optional[str] = None
+    is_builtin: bool = Field(default=False)
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+
+class Permission(SQLModel, table=True):
+    id: Optional[int] = Field(default=None, primary_key=True)
+    code: str = Field(unique=True, index=True)
+    name: str
+    module: str = Field(index=True)
+    description: Optional[str] = None
+    protected_apis: Optional[str] = None
+
+class RolePermission(SQLModel, table=True):
+    id: Optional[int] = Field(default=None, primary_key=True)
+    role_id: int = Field(foreign_key="role.id", index=True)
+    permission_id: int = Field(foreign_key="permission.id", index=True)
+
+class UserRole(SQLModel, table=True):
+    id: Optional[int] = Field(default=None, primary_key=True)
+    user_id: int = Field(foreign_key="user.id", index=True)
+    role_id: int = Field(foreign_key="role.id", index=True)
+
 class User(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
     username: str = Field(unique=True, index=True)

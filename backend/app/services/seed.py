@@ -1,7 +1,7 @@
 import json
 from datetime import date
 from sqlmodel import select
-from app.models import Stock, StrategyDefinition, DailyPrice, FactorValue, User, ConceptBoard, StockConceptMap
+from app.models import Stock, StrategyDefinition, DailyPrice, FactorValue, User, ConceptBoard, StockConceptMap, Role, Permission, RolePermission, UserRole
 from app.services.auth import hash_password
 from app.services.strategies import get_strategy_map
 from app.services.index_sync import seed_index_products
@@ -102,6 +102,57 @@ CONCEPT_STOCK_MAP = {
     "FREE_TRADE": ["600018", "600317", "000088", "002202", "600717", "601866", "601919", "600708", "002095", "300059"],
 }
 
+DEFAULT_PERMISSIONS = [
+    {"code": "data.sync", "name": "数据同步", "module": "数据中心", "description": "触发股票/指数数据同步任务", "protected_apis": ["POST /api/v1/data/sync/stocks", "POST /api/v1/data/sync/daily", "POST /api/v1/data/snapshot/update", "POST /api/v1/data/sync/index/products", "POST /api/v1/data/sync/index/daily"]},
+    {"code": "data.view", "name": "数据查看", "module": "数据中心", "description": "查看行情数据与数据完整性", "protected_apis": ["POST /api/v1/data/daily", "POST /api/v1/data/price_range", "POST /api/v1/data/integrity"]},
+    {"code": "backtest.run", "name": "运行回测", "module": "策略回测", "description": "执行策略历史回测", "protected_apis": ["POST /api/v1/backtest/run"]},
+    {"code": "backtest.view", "name": "查看回测", "module": "策略回测", "description": "查看策略列表与回测结果", "protected_apis": ["GET /api/v1/strategies"]},
+    {"code": "screening.run", "name": "运行选股", "module": "综合选股", "description": "执行股票筛选", "protected_apis": ["POST /api/v1/screening/run"]},
+    {"code": "screening.export", "name": "导出选股", "module": "综合选股", "description": "导出筛选结果为文件", "protected_apis": ["POST /api/v1/screening/export"]},
+    {"code": "screening.preset", "name": "选股方案", "module": "综合选股", "description": "管理选股预设方案", "protected_apis": ["POST /api/v1/screening/preset", "DELETE /api/v1/screening/preset"]},
+    {"code": "pattern.scan", "name": "形态扫描", "module": "形态识别", "description": "执行K线形态扫描", "protected_apis": ["POST /api/v1/patterns/scan"]},
+    {"code": "logs.view", "name": "查看日志", "module": "系统日志", "description": "查看系统运行日志", "protected_apis": ["GET /api/v1/system/logs"]},
+    {"code": "logs.delete", "name": "删除日志", "module": "系统日志", "description": "删除系统运行日志", "protected_apis": ["DELETE /api/v1/system/logs"]},
+    {"code": "user.manage", "name": "用户管理", "module": "权限管理", "description": "管理用户、角色与权限", "protected_apis": ["GET /api/v1/admin/users", "POST /api/v1/admin/users/*/roles", "DELETE /api/v1/admin/users/*/roles/*", "GET /api/v1/admin/roles", "POST /api/v1/admin/roles", "PUT /api/v1/admin/roles/*", "DELETE /api/v1/admin/roles/*", "POST /api/v1/admin/roles/*/permissions", "DELETE /api/v1/admin/roles/*/permissions/*", "GET /api/v1/admin/permissions"]},
+    {"code": "concept.view", "name": "查看概念", "module": "概念板块", "description": "查看概念板块数据", "protected_apis": ["GET /api/v1/concept/list", "GET /api/v1/concept/*/detail"]},
+    {"code": "index.view", "name": "查看指数", "module": "指数ETF", "description": "查看指数与ETF数据", "protected_apis": ["GET /api/v1/index/list", "GET /api/v1/index/*/detail", "GET /api/v1/index/*/history"]},
+    {"code": "export.data", "name": "数据导出", "module": "数据导出", "description": "导出原始价格数据", "protected_apis": ["POST /api/v1/export"]},
+]
+
+def seed_permissions(session):
+    if session.exec(select(Permission)).first():
+        return
+    for p in DEFAULT_PERMISSIONS:
+        session.add(Permission(
+            code=p["code"],
+            name=p["name"],
+            module=p["module"],
+            description=p["description"],
+            protected_apis=json.dumps(p["protected_apis"], ensure_ascii=False),
+        ))
+    session.commit()
+
+def seed_roles(session):
+    if session.exec(select(Role)).first():
+        return
+    super_admin = Role(name="超级管理员", description="系统内置超级管理员，拥有全部权限", is_builtin=True)
+    session.add(super_admin)
+    session.commit()
+    session.refresh(super_admin)
+    all_perms = session.exec(select(Permission)).all()
+    for p in all_perms:
+        session.add(RolePermission(role_id=super_admin.id, permission_id=p.id))
+    session.commit()
+
+def seed_user_roles(session):
+    admin_user = session.exec(select(User).where(User.username == "admin")).first()
+    super_admin_role = session.exec(select(Role).where(Role.name == "超级管理员")).first()
+    if admin_user and super_admin_role:
+        existing = session.exec(select(UserRole).where(UserRole.user_id == admin_user.id, UserRole.role_id == super_admin_role.id)).first()
+        if not existing:
+            session.add(UserRole(user_id=admin_user.id, role_id=super_admin_role.id))
+            session.commit()
+
 def seed_basic_data(session):
     if not session.exec(select(User)).first():
         session.add(User(username="admin", password_hash=hash_password("123456"), role="admin"))
@@ -113,6 +164,9 @@ def seed_basic_data(session):
             session.add(StrategyDefinition(name=name, description=f"{name}策略", parameters_json=json.dumps({}, ensure_ascii=False)))
         session.commit()
     
+    seed_permissions(session)
+    seed_roles(session)
+    seed_user_roles(session)
     seed_index_products(session)
 
 def seed_concept_data(session):

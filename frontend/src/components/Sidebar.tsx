@@ -1,5 +1,5 @@
 import { NavLink, useNavigate } from 'react-router-dom'
-import { BarChart3, Database, Layers, LineChart, ScrollText, Settings, Sparkles, Timer, TrendingUp, LogOut, User, Boxes, CandlestickChart, GitCompare } from 'lucide-react'
+import { BarChart3, Database, Layers, LineChart, ScrollText, Settings, Sparkles, Timer, TrendingUp, LogOut, User, Boxes, CandlestickChart, GitCompare, Shield } from 'lucide-react'
 import { useAuth } from '../lib/auth'
 
 const items = [
@@ -15,6 +15,10 @@ const items = [
     { to: '/visual', label: '高级可视化', icon: LineChart },
     { to: '/settings', label: '系统设置', icon: Settings },
     { to: '/logs', label: '运行日志', icon: ScrollText },
+]
+
+const adminItems = [
+    { to: '/admin/permissions', label: '权限管理', icon: Shield },
 ]
 
 export default function Sidebar() {
@@ -74,6 +78,37 @@ export default function Sidebar() {
                         </NavLink>
                     )
                 })}
+                {isAdmin && (
+                    <>
+                        <div className="my-3 border-t border-slate-100" />
+                        <p className="px-3 pb-1 text-[10px] font-semibold text-slate-400 uppercase tracking-wider">管理</p>
+                        {adminItems.map((item) => {
+                            const Icon = item.icon
+                            return (
+                                <NavLink
+                                    key={item.to}
+                                    to={item.to}
+                                    className={({ isActive }) =>
+                                        `flex items-center gap-3 px-3 py-2.5 text-sm font-medium transition-all duration-200 rounded-lg group ${isActive
+                                            ? 'text-primary bg-primary/5 shadow-sm shadow-blue-100/50'
+                                            : 'text-slate-500 hover:text-slate-900 hover:bg-slate-50'
+                                        }`
+                                    }
+                                >
+                                    {({ isActive }) => (
+                                        <>
+                                            <Icon size={18} className={`transition-colors ${isActive ? 'text-primary' : 'text-slate-400 group-hover:text-slate-600'}`} strokeWidth={isActive ? 2.5 : 2} />
+                                            <span>{item.label}</span>
+                                            {isActive && (
+                                                <div className="ml-auto w-1 h-1 rounded-full bg-primary" />
+                                            )}
+                                        </>
+                                    )}
+                                </NavLink>
+                            )
+                        })}
+                    </>
+                )}
             </nav>
 
             {/* Merged Footer */}

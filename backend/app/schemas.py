@@ -101,3 +101,43 @@ class PreferencesResponse(BaseModel):
     theme: Optional[str] = None
     language: Optional[str] = None
     default_page: Optional[str] = None
+
+class RoleCreateRequest(BaseModel):
+    name: str
+    description: Optional[str] = None
+
+class RoleUpdateRequest(BaseModel):
+    name: Optional[str] = None
+    description: Optional[str] = None
+
+class UserRoleRequest(BaseModel):
+    role_id: int
+
+class RolePermissionRequest(BaseModel):
+    permission_id: int
+
+class PermissionGroupResponse(BaseModel):
+    module: str
+    permissions: List[Dict[str, Any]]
+
+class UserDetailResponse(BaseModel):
+    id: int
+    username: str
+    role: str
+    avatar_url: Optional[str] = None
+    created_at: datetime
+    last_login: Optional[datetime] = None
+    roles: List[Dict[str, Any]] = []
+    permissions: List[str] = []
+
+class RoleDetailResponse(BaseModel):
+    id: int
+    name: str
+    description: Optional[str] = None
+    is_builtin: bool = False
+    created_at: datetime
+    permissions: List[Dict[str, Any]] = []
+
+class MyPermissionsResponse(BaseModel):
+    permissions: List[str]
+    roles: List[str]

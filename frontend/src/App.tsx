@@ -16,6 +16,7 @@ import IndexCompare from './pages/IndexCompare'
 import Settings from './pages/Settings'
 import SystemLogs from './pages/SystemLogs'
 import Profile from './pages/Profile'
+import Permissions from './pages/Permissions'
 import Login from './pages/Login'
 
 function App() {
@@ -56,6 +57,7 @@ function App() {
                     <Route path="/index-compare" element={<IndexCompare />} />
                     <Route path="/settings" element={<Settings />} />
                     <Route path="/logs" element={<SystemLogs />} />
+                    <Route path="/admin/permissions" element={<Permissions />} />
                     <Route path="/profile" element={<Profile />} />
                 </Route>
             </Route>
