@@ -508,3 +508,126 @@ def related_concepts(
 ):
     related = get_related_concepts(session, code, limit=limit)
     return {"items": related}
+
+# ==================== 指数与ETF接口 ====================
+from datetime import date as date_type
+from app.services.index_service import (
+    get_index_list,
+    get_index_history,
+    get_index_compare,
+    get_index_constituents,
+    get_index_detail,
+)
+from app.services.index_sync import sync_index_list, sync_index_daily
+from app.models import IndexProduct
+
+def run_sync_index_list_task():
+    global SYNC_STATE
+    SYNC_STATE.update({"status": "running", "type": "index_list", "current": 0, "total": 0, "message": "正在初始化指数/ETF产品..."})
+    try:
+        with get_session() as session:
+            count = sync_index_list(session, progress_callback=update_progress)
+            SYNC_STATE.update({"status": "finished", "current": count, "total": count, "message": f"指数/ETF产品初始化完成，共 {count} 个"})
+    except Exception as e:
+        print(f"Background task failed: {e}")
+        SYNC_STATE.update({"status": "error", "message": f"任务执行失败: {str(e)}"})
+
+def run_sync_index_daily_task(codes, start_date, end_date, sync_type):
+    global SYNC_STATE
+    SYNC_STATE.update({"status": "running", "type": "index_daily", "current": 0, "total": 0, "message": "正在启动..."})
+    try:
+        with get_session() as session:
+            count = sync_index_daily(session, codes, start_date, end_date, sync_type, progress_callback=update_progress)
+            SYNC_STATE.update({"status": "finished", "current": count, "total": max(count, 1), "message": f"指数/ETF日线同步完成，共 {count} 条记录"})
+    except Exception as e:
+        print(f"Background task failed: {e}")
+        SYNC_STATE.update({"status": "error", "message": f"任务执行失败: {str(e)}"})
+
+@router.get("/index/list")
+def list_indices(
+    keyword: str = "",
+    index_type: str | None = Query(None, pattern="^(index|etf)$"),
+    sort_by: str = Query("name", pattern="^(name|code|daily_change|five_day_change|latest_amount)$"),
+    sort_order: str = Query("asc", pattern="^(asc|desc)$"),
+    session=Depends(session_dep),
+):
+    """指数/ETF列表 + 当日表现"""
+    results = get_index_list(
+        session,
+        keyword=keyword,
+        index_type=index_type,
+        sort_by=sort_by,
+        sort_order=sort_order,
+    )
+    return {"total": len(results), "items": results}
+
+@router.get("/index/{code}/detail")
+def index_detail(code: str, session=Depends(session_dep)):
+    """指数/ETF详情（关键指标）"""
+    detail = get_index_detail(session, code)
+    if not detail:
+        raise HTTPException(status_code=404, detail="指数/ETF不存在")
+    return detail
+
+@router.get("/index/{code}/history")
+def index_history(
+    code: str,
+    start_date: date_type | None = None,
+    end_date: date_type | None = None,
+    limit: int | None = Query(None, ge=1, le=10000),
+    session=Depends(session_dep),
+):
+    """指数/ETF K线历史数据（含MA均线）"""
+    history = get_index_history(session, code, start=start_date, end=end_date, limit=limit)
+    if history is None:
+        raise HTTPException(status_code=404, detail="指数/ETF不存在")
+    return history
+
+@router.get("/index/compare")
+def index_compare(
+    codes: str = Query(..., description="指数/ETF代码，逗号分隔，2~4个"),
+    start_date: date_type | None = None,
+    base_method: str = Query("first", pattern="^(first|ytd|y-1|custom)$"),
+    session=Depends(session_dep),
+):
+    """多指数归一化对比序列"""
+    code_list = [c.strip() for c in codes.split(",") if c.strip()]
+    if len(code_list) < 2:
+        raise HTTPException(status_code=400, detail="至少选择2个指数/ETF进行对比")
+    if len(code_list) > 4:
+        raise HTTPException(status_code=400, detail="最多支持4个指数/ETF同时对比")
+    return get_index_compare(session, code_list, start_date=start_date, base_method=base_method)
+
+@router.get("/index/constituents/{code}")
+def index_constituents(code: str, session=Depends(session_dep)):
+    """指数成分股"""
+    result = get_index_constituents(session, code)
+    if result is None:
+        raise HTTPException(status_code=404, detail="指数/ETF不存在")
+    return result
+
+@router.post("/data/sync/index/products")
+def sync_index_products(background_tasks: BackgroundTasks, session=Depends(session_dep), user=Depends(admin_dep)):
+    """初始化指数/ETF产品列表"""
+    if SYNC_STATE["status"] == "running":
+        raise HTTPException(status_code=400, detail="Task already running")
+    background_tasks.add_task(run_sync_index_list_task)
+    return {"status": "started", "message": "Index products sync started"}
+
+@router.post("/data/sync/index/daily")
+def sync_index_daily_data(
+    background_tasks: BackgroundTasks,
+    payload: DateRangeRequest,
+    session=Depends(session_dep),
+    user=Depends(admin_dep),
+):
+    """同步指数/ETF日线数据"""
+    if SYNC_STATE["status"] == "running":
+        raise HTTPException(status_code=400, detail="Task already running")
+    
+    codes = payload.symbols or [p.code for p in session.exec(select(IndexProduct)).all()]
+    if not codes:
+        raise HTTPException(status_code=400, detail="无可同步指数/ETF")
+    
+    background_tasks.add_task(run_sync_index_daily_task, codes, payload.start_date, payload.end_date, payload.sync_type)
+    return {"status": "started", "count": len(codes), "codes": codes}

@@ -623,3 +623,182 @@ def fetch_with_fallback(data_type: str, *args, **kwargs) -> pd.DataFrame:
             continue
     
     raise RuntimeError(f"所有数据源均无法获取 {data_type}")
+
+# ==================== 指数与ETF数据源 ====================
+
+def fetch_index_daily_akshare(code: str, start: date, end: date) -> pd.DataFrame:
+    """
+    AkShare - 获取指数日线数据
+    适用: 沪深300(000300), 上证50(000016), 创业板指(399006), 科创50(000688), 中证500(000905)等
+    """
+    random_delay(0.3, 0.8)
+    try:
+        df = ak.stock_zh_index_daily(
+            symbol=code,
+            start_date=start.strftime("%Y%m%d"),
+            end_date=end.strftime("%Y%m%d"),
+        )
+        if df.empty:
+            return pd.DataFrame()
+        df = df.rename(columns={
+            "date": "trade_date",
+            "open": "open",
+            "high": "high",
+            "low": "low",
+            "close": "close",
+            "volume": "volume",
+        })
+        df["trade_date"] = pd.to_datetime(df["trade_date"]).dt.date
+        df["amount"] = df.get("amount", 0)
+        print(f"[AkShare-指数] 成功获取 {code} 日线数据 {len(df)} 条")
+        return df[["trade_date", "open", "high", "low", "close", "volume", "amount"]]
+    except Exception as e:
+        print(f"[AkShare-指数] 获取失败 {code}: {e}")
+        try:
+            df = ak.index_zh_a_hist(
+                symbol=code,
+                period="daily",
+                start_date=start.strftime("%Y%m%d"),
+                end_date=end.strftime("%Y%m%d"),
+            )
+            if df.empty:
+                return pd.DataFrame()
+            df = df.rename(columns={
+                "日期": "trade_date",
+                "开盘": "open",
+                "最高": "high",
+                "最低": "low",
+                "收盘": "close",
+                "成交量": "volume",
+                "成交额": "amount",
+            })
+            df["trade_date"] = pd.to_datetime(df["trade_date"]).dt.date
+            print(f"[AkShare-指数备用] 成功获取 {code} 日线数据 {len(df)} 条")
+            return df[["trade_date", "open", "high", "low", "close", "volume", "amount"]]
+        except Exception as e2:
+            print(f"[AkShare-指数备用] 获取失败 {code}: {e2}")
+            raise e2
+
+def fetch_etf_daily_akshare(code: str, start: date, end: date) -> pd.DataFrame:
+    """
+    AkShare - 获取ETF日线数据
+    适用: 510300(沪深300ETF), 510500(中证500ETF), 512000(券商ETF)等
+    """
+    random_delay(0.3, 0.8)
+    try:
+        market = "sh" if code.startswith("5") else "sz"
+        df = ak.fund_etf_hist_em(
+            symbol=code,
+            period="daily",
+            start_date=start.strftime("%Y%m%d"),
+            end_date=end.strftime("%Y%m%d"),
+            adjust="qfq",
+        )
+        if df.empty:
+            return pd.DataFrame()
+        df = df.rename(columns={
+            "日期": "trade_date",
+            "开盘": "open",
+            "最高": "high",
+            "最低": "low",
+            "收盘": "close",
+            "成交量": "volume",
+            "成交额": "amount",
+        })
+        df["trade_date"] = pd.to_datetime(df["trade_date"]).dt.date
+        print(f"[AkShare-ETF] 成功获取 {code} 日线数据 {len(df)} 条")
+        return df[["trade_date", "open", "high", "low", "close", "volume", "amount"]]
+    except Exception as e:
+        print(f"[AkShare-ETF] 获取失败 {code}: {e}")
+        try:
+            df = ak.stock_zh_a_hist(
+                symbol=code,
+                period="daily",
+                start_date=start.strftime("%Y%m%d"),
+                end_date=end.strftime("%Y%m%d"),
+                adjust="qfq",
+            )
+            if df.empty:
+                return pd.DataFrame()
+            df = df.rename(columns={
+                "日期": "trade_date",
+                "开盘": "open",
+                "最高": "high",
+                "最低": "low",
+                "收盘": "close",
+                "成交量": "volume",
+                "成交额": "amount",
+            })
+            df["trade_date"] = pd.to_datetime(df["trade_date"]).dt.date
+            print(f"[AkShare-ETF备用] 成功获取 {code} 日线数据 {len(df)} 条")
+            return df[["trade_date", "open", "high", "low", "close", "volume", "amount"]]
+        except Exception as e2:
+            print(f"[AkShare-ETF备用] 获取失败 {code}: {e2}")
+            raise e2
+
+def fetch_index_constituents_akshare(code: str) -> pd.DataFrame:
+    """
+    AkShare - 获取指数成分股列表
+    """
+    random_delay(0.5, 1.5)
+    try:
+        index_name_map = {
+            "000300": "沪深300",
+            "000016": "上证50",
+            "399006": "创业板指",
+            "000688": "科创50",
+            "000905": "中证500",
+            "000852": "中证1000",
+            "000906": "中证800",
+            "000001": "上证指数",
+            "399001": "深证成指",
+            "399300": "沪深300R",
+        }
+        index_name = index_name_map.get(code, code)
+        
+        if code == "000300":
+            df = ak.index_stock_cons_csindex(symbol="000300")
+            df = df.rename(columns={
+                "成分券代码": "symbol",
+                "成分券名称": "name",
+            })
+        elif code in ["000016", "000905", "000852", "000906", "000001", "399001", "399006", "000688"]:
+            try:
+                df = ak.index_stock_cons(symbol=code)
+                df = df.rename(columns={
+                    "品种代码": "symbol",
+                    "品种名称": "name",
+                })
+            except Exception:
+                df = ak.index_stock_cons_weight_csindex(symbol=code)
+                df = df.rename(columns={
+                    "成分券代码": "symbol",
+                    "成分券名称": "name",
+                })
+        else:
+            try:
+                df = ak.index_stock_cons(symbol=code)
+                df = df.rename(columns={
+                    "品种代码": "symbol",
+                    "品种名称": "name",
+                })
+            except Exception:
+                return pd.DataFrame(columns=["symbol", "name", "weight"])
+        
+        if "symbol" not in df.columns or "name" not in df.columns:
+            print(f"[AkShare-成分股] {code} 返回格式异常: {df.columns.tolist()}")
+            return pd.DataFrame(columns=["symbol", "name", "weight"])
+        
+        df["symbol"] = df["symbol"].astype(str).str.zfill(6)
+        if "权重" in df.columns:
+            df = df.rename(columns={"权重": "weight"})
+        elif "权重(%)" in df.columns:
+            df = df.rename(columns={"权重(%)": "weight"})
+        else:
+            df["weight"] = None
+        
+        print(f"[AkShare-成分股] 成功获取 {index_name}({code}) 成分股 {len(df)} 只")
+        return df[["symbol", "name", "weight"]]
+    except Exception as e:
+        print(f"[AkShare-成分股] 获取失败 {code}: {e}")
+        return pd.DataFrame(columns=["symbol", "name", "weight"])

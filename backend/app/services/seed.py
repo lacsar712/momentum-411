@@ -4,6 +4,7 @@ from sqlmodel import select
 from app.models import Stock, StrategyDefinition, DailyPrice, FactorValue, User, ConceptBoard, StockConceptMap
 from app.services.auth import hash_password
 from app.services.strategies import get_strategy_map
+from app.services.index_sync import seed_index_products
 
 CONCEPT_DATA = [
     {"code": "AI", "name": "人工智能", "category": "科技", "description": "人工智能产业链，包括算法、算力、应用等领域"},
@@ -111,6 +112,8 @@ def seed_basic_data(session):
         for name, func in get_strategy_map().items():
             session.add(StrategyDefinition(name=name, description=f"{name}策略", parameters_json=json.dumps({}, ensure_ascii=False)))
         session.commit()
+    
+    seed_index_products(session)
 
 def seed_concept_data(session):
     if session.exec(select(ConceptBoard)).first():

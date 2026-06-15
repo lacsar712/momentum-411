@@ -1,10 +1,12 @@
 import { NavLink, useNavigate } from 'react-router-dom'
-import { BarChart3, Database, Layers, LineChart, ScrollText, Settings, Sparkles, Timer, TrendingUp, LogOut, User, Boxes } from 'lucide-react'
+import { BarChart3, Database, Layers, LineChart, ScrollText, Settings, Sparkles, Timer, TrendingUp, LogOut, User, Boxes, CandlestickChart, GitCompare } from 'lucide-react'
 import { useAuth } from '../lib/auth'
 
 const items = [
     { to: '/', label: '总览看板', icon: BarChart3 },
     { to: '/data', label: '数据中心', icon: Database },
+    { to: '/index', label: '指数与ETF', icon: CandlestickChart },
+    { to: '/index-compare', label: '指数对比', icon: GitCompare },
     { to: '/concept', label: '概念板块', icon: Boxes },
     { to: '/screening', label: '综合选股', icon: Sparkles },
     { to: '/patterns', label: '形态扫描', icon: Layers },

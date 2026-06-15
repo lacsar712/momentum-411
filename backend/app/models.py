@@ -137,3 +137,28 @@ class StockConceptMap(SQLModel, table=True):
     concept_id: int = Field(foreign_key="conceptboard.id", index=True)
     weight: Optional[float] = None
     created_at: datetime = Field(default_factory=datetime.utcnow)
+
+class IndexProduct(SQLModel, table=True):
+    """指数与ETF产品定义表"""
+    id: Optional[int] = Field(default=None, primary_key=True)
+    code: str = Field(index=True, unique=True)
+    name: str = Field(index=True)
+    index_type: str = Field(index=True)
+    tracking_target: Optional[str] = None
+    list_date: Optional[date] = None
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+    updated_at: datetime = Field(default_factory=datetime.utcnow)
+    prices: List["IndexDailyPrice"] = Relationship(back_populates="index_product")
+
+class IndexDailyPrice(SQLModel, table=True):
+    """指数与ETF日线数据表"""
+    id: Optional[int] = Field(default=None, primary_key=True)
+    index_id: int = Field(foreign_key="indexproduct.id", index=True)
+    trade_date: date = Field(index=True)
+    open: float
+    high: float
+    low: float
+    close: float
+    volume: float
+    amount: Optional[float] = None
+    index_product: Optional[IndexProduct] = Relationship(back_populates="prices")
