@@ -1,8 +1,10 @@
 import logging
 import time
+import os
 from datetime import date
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, Request
+from fastapi.staticfiles import StaticFiles
 from apscheduler.schedulers.background import BackgroundScheduler
 from app.core.config import settings
 from app.db import init_db, get_session
@@ -36,6 +38,10 @@ app = FastAPI(
 )
 
 app.include_router(router)
+
+upload_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "uploads")
+os.makedirs(upload_dir, exist_ok=True)
+app.mount("/uploads", StaticFiles(directory=upload_dir), name="uploads")
 
 @app.middleware("http")
 async def request_timing(request: Request, call_next):

@@ -1,4 +1,4 @@
-from datetime import date
+from datetime import date, datetime
 from typing import Optional, List, Dict, Any
 from pydantic import BaseModel, Field
 
@@ -68,3 +68,36 @@ class LogDeleteRequest(BaseModel):
     start_date: Optional[date] = None
     end_date: Optional[date] = None
     delete_all: bool = False
+
+class UserInfoResponse(BaseModel):
+    id: int
+    username: str
+    role: str
+    avatar_url: Optional[str] = None
+    created_at: datetime
+    last_login: Optional[datetime] = None
+
+class ChangePasswordRequest(BaseModel):
+    old_password: str
+    new_password: str
+
+class ActivityLogItem(BaseModel):
+    id: int
+    action_type: str
+    action_detail: Optional[str] = None
+    ip_address: Optional[str] = None
+    created_at: datetime
+
+class ActivityLogResponse(BaseModel):
+    total: int
+    items: List[ActivityLogItem]
+
+class PreferencesUpdateRequest(BaseModel):
+    theme: Optional[str] = None
+    language: Optional[str] = None
+    default_page: Optional[str] = None
+
+class PreferencesResponse(BaseModel):
+    theme: Optional[str] = None
+    language: Optional[str] = None
+    default_page: Optional[str] = None

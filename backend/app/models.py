@@ -95,6 +95,18 @@ class User(SQLModel, table=True):
     username: str = Field(unique=True, index=True)
     password_hash: str
     role: str = Field(default="analyst")
+    avatar_url: Optional[str] = None
+    preferences_json: Optional[str] = None
+    last_login: Optional[datetime] = None
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+
+class UserActionLog(SQLModel, table=True):
+    id: Optional[int] = Field(default=None, primary_key=True)
+    user_id: int = Field(foreign_key="user.id", index=True)
+    action_type: str = Field(index=True)
+    action_detail: Optional[str] = None
+    ip_address: Optional[str] = None
+    user_agent: Optional[str] = None
     created_at: datetime = Field(default_factory=datetime.utcnow)
 
 class StockSnapshot(SQLModel, table=True):

@@ -1,18 +1,24 @@
 import { Outlet } from 'react-router-dom'
 import Sidebar from './Sidebar'
+import UserMenu from './UserMenu'
 
 export default function Layout() {
     return (
-        <div className="flex h-screen w-full relative overflow-hidden bg-transparent">
-            {/* Ambient Background decoration can be handled by body style in index.css */}
-
+        <div className="flex h-screen w-full relative overflow-hidden bg-background">
             <Sidebar />
 
-            <main className="flex-1 h-full overflow-y-auto pl-64 pr-0 py-0 relative z-10 w-full scrollbar-none">
-                <div className="min-h-full max-w-7xl mx-auto p-8 animate-fade-in-up">
-                    <Outlet />
-                </div>
-            </main>
+            <div className="flex-1 flex flex-col pl-64 relative z-10">
+                <header className="h-16 flex items-center justify-between px-8 border-b border-border bg-card/50 backdrop-blur-sm sticky top-0 z-40 shrink-0">
+                    <div></div>
+                    <UserMenu />
+                </header>
+
+                <main className="flex-1 overflow-y-auto scrollbar-none">
+                    <div className="min-h-full max-w-7xl mx-auto p-8 animate-fade-in-up">
+                        <Outlet />
+                    </div>
+                </main>
+            </div>
         </div>
     )
 }

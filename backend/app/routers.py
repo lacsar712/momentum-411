@@ -1,23 +1,23 @@
 import io
 import json
 import inspect
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
 from typing import List, Optional
 from sqlalchemy import func, distinct
-from fastapi import APIRouter, Depends, HTTPException, Header, Query
-from fastapi.responses import StreamingResponse
+from fastapi import APIRouter, Depends, HTTPException, Header, Query, Request, File, UploadFile
+from fastapi.responses import StreamingResponse, JSONResponse
 import pandas as pd
 from sqlmodel import select
 from app.db import get_session
-from app.models import Stock, DailyPrice, ScreeningPreset, PatternResult, BacktestResult, StrategyDefinition, User, DataSyncLog
-from app.schemas import DateRangeRequest, DailyDataRequest, PriceRangeRequest, ScreeningRequest, ScreeningExportRequest, ScreeningResponse, PatternScanRequest, BacktestRequest, ExportRequest, PresetRequest, LoginRequest, AuthResponse, LogDeleteRequest
+from app.models import Stock, DailyPrice, ScreeningPreset, PatternResult, BacktestResult, StrategyDefinition, User, DataSyncLog, UserActionLog
+from app.schemas import DateRangeRequest, DailyDataRequest, PriceRangeRequest, ScreeningRequest, ScreeningExportRequest, ScreeningResponse, PatternScanRequest, BacktestRequest, ExportRequest, PresetRequest, LoginRequest, AuthResponse, LogDeleteRequest, UserInfoResponse, ChangePasswordRequest, ActivityLogResponse, PreferencesUpdateRequest, PreferencesResponse
 from app.services.data_sync import sync_stock_list, sync_daily, validate_integrity
 from app.services.screening import screen_stocks
 from app.services.patterns import detect_patterns, PATTERN_NAMES
 from app.services.strategies import get_strategy_map
 from app.services.backtest import run_backtest
 from app.services.cache import cache_get, cache_set
-from app.services.auth import verify_password, issue_token, get_token_payload
+from app.services.auth import verify_password, issue_token, get_token_payload, hash_password, check_password_strength, invalidate_user_tokens, log_user_action
 from app.services.concept import (
     get_concept_list,
     get_concept_detail,
@@ -54,12 +54,123 @@ def admin_dep(user=Depends(auth_dep)):
     return user
 
 @router.post("/auth/login", response_model=AuthResponse)
-def login(payload: LoginRequest, session=Depends(session_dep)):
+def login(payload: LoginRequest, request: Request, session=Depends(session_dep)):
     user = session.exec(select(User).where(User.username == payload.username)).first()
     if not user or not verify_password(payload.password, user.password_hash):
         raise HTTPException(status_code=401, detail="账号或密码错误")
     token = issue_token(user.username, user.role)
+    user.last_login = datetime.utcnow()
+    session.add(user)
+    session.commit()
+    log_user_action(
+        session,
+        user_id=user.id,
+        action_type="login",
+        action_detail="用户登录",
+        ip_address=request.client.host if request.client else None,
+        user_agent=request.headers.get("user-agent")
+    )
     return {"token": token, "role": user.role}
+
+@router.get("/auth/me", response_model=UserInfoResponse)
+def get_me(user=Depends(auth_dep)):
+    return user
+
+@router.post("/auth/change_password")
+def change_password(payload: ChangePasswordRequest, user=Depends(auth_dep), session=Depends(session_dep)):
+    if not verify_password(payload.old_password, user.password_hash):
+        raise HTTPException(status_code=400, detail="旧密码错误")
+    strength = check_password_strength(payload.new_password)
+    if not strength["passed"]:
+        raise HTTPException(status_code=400, detail={"message": "密码强度不足", "details": strength["feedback"]})
+    user.password_hash = hash_password(payload.new_password)
+    session.add(user)
+    session.commit()
+    invalidate_user_tokens(user.username)
+    log_user_action(session, user_id=user.id, action_type="change_password", action_detail="修改密码")
+    return {"status": "ok", "message": "密码修改成功"}
+
+@router.get("/auth/password_strength")
+def get_password_strength(password: str):
+    return check_password_strength(password)
+
+@router.get("/auth/activity_log", response_model=ActivityLogResponse)
+def get_activity_log(
+    user=Depends(auth_dep),
+    session=Depends(session_dep),
+    action_type: Optional[str] = None,
+    start_date: Optional[date] = None,
+    end_date: Optional[date] = None,
+    limit: int = Query(20, ge=1, le=100),
+    offset: int = Query(0, ge=0)
+):
+    query = select(UserActionLog).where(UserActionLog.user_id == user.id)
+    if action_type:
+        query = query.where(UserActionLog.action_type == action_type)
+    if start_date:
+        query = query.where(UserActionLog.created_at >= start_date)
+    if end_date:
+        query = query.where(UserActionLog.created_at <= end_date + timedelta(days=1))
+    query = query.order_by(UserActionLog.created_at.desc())
+    total = len(session.exec(query).all())
+    logs = session.exec(query.offset(offset).limit(limit)).all()
+    return {"total": total, "items": logs}
+
+@router.get("/auth/preferences", response_model=PreferencesResponse)
+def get_preferences(user=Depends(auth_dep)):
+    if user.preferences_json:
+        import json
+        return json.loads(user.preferences_json)
+    return {}
+
+@router.put("/auth/preferences", response_model=PreferencesResponse)
+def update_preferences(payload: PreferencesUpdateRequest, user=Depends(auth_dep), session=Depends(session_dep)):
+    import json
+    prefs = {}
+    if user.preferences_json:
+        prefs = json.loads(user.preferences_json)
+    if payload.theme is not None:
+        prefs["theme"] = payload.theme
+    if payload.language is not None:
+        prefs["language"] = payload.language
+    if payload.default_page is not None:
+        prefs["default_page"] = payload.default_page
+    user.preferences_json = json.dumps(prefs, ensure_ascii=False)
+    session.add(user)
+    session.commit()
+    log_user_action(session, user_id=user.id, action_type="update_preferences", action_detail="更新用户偏好")
+    return prefs
+
+@router.get("/auth/avatar")
+def get_avatar(user=Depends(auth_dep)):
+    return {"avatar_url": user.avatar_url}
+
+@router.post("/auth/avatar")
+def upload_avatar(file: UploadFile = File(...), user=Depends(auth_dep), session=Depends(session_dep)):
+    import os
+    import uuid
+    from app.core.config import settings
+
+    if not file.content_type or not file.content_type.startswith("image/"):
+        raise HTTPException(status_code=400, detail="只支持图片文件")
+
+    upload_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "uploads", "avatars")
+    os.makedirs(upload_dir, exist_ok=True)
+
+    file_ext = os.path.splitext(file.filename)[1] if file.filename else ".png"
+    new_filename = f"{user.id}_{uuid.uuid4().hex}{file_ext}"
+    file_path = os.path.join(upload_dir, new_filename)
+
+    with open(file_path, "wb") as f:
+        f.write(file.file.read())
+
+    avatar_url = f"/uploads/avatars/{new_filename}"
+    user.avatar_url = avatar_url
+    session.add(user)
+    session.commit()
+
+    log_user_action(session, user_id=user.id, action_type="upload_avatar", action_detail="上传头像")
+    return {"avatar_url": avatar_url}
 
 @router.get("/stocks")
 def list_stocks(keyword: str = "", limit: int = 20, offset: int = 0, session=Depends(session_dep)):
@@ -153,6 +264,7 @@ def sync_stocks(background_tasks: BackgroundTasks, session=Depends(session_dep),
     if SYNC_STATE["status"] == "running":
         raise HTTPException(status_code=400, detail="Task already running")
     background_tasks.add_task(run_sync_stock_list_task)
+    log_user_action(session, user_id=user.id, action_type="run_sync", action_detail="启动股票清单同步")
     return {"status": "started", "message": "Stock sync started in background"}
 
 @router.post("/data/sync/daily")
@@ -165,6 +277,12 @@ def sync_daily_data(payload: DateRangeRequest, background_tasks: BackgroundTasks
         raise HTTPException(status_code=400, detail="无可同步股票")
     
     background_tasks.add_task(run_sync_daily_task, symbols, payload.start_date, payload.end_date, payload.sync_type)
+    log_user_action(
+        session,
+        user_id=user.id,
+        action_type="run_sync",
+        action_detail=f"启动日线数据同步: {len(symbols)}只股票, {payload.start_date}~{payload.end_date}"
+    )
     return {"status": "started", "count": len(symbols)}
 
 # 导入快照更新服务
@@ -187,6 +305,7 @@ def update_snapshots(background_tasks: BackgroundTasks, session=Depends(session_
     if SYNC_STATE["status"] == "running":
         raise HTTPException(status_code=400, detail="Task already running")
     background_tasks.add_task(run_snapshot_update_task)
+    log_user_action(session, user_id=user.id, action_type="run_sync", action_detail="启动快照更新")
     return {"status": "started", "message": "Snapshot update started"}
 
 @router.post("/data/daily")
@@ -246,7 +365,7 @@ def check_integrity(payload: DateRangeRequest, session=Depends(session_dep)):
     return [validate_integrity(session, symbol, payload.start_date, payload.end_date) for symbol in symbols]
 
 @router.post("/screening/run", response_model=ScreeningResponse)
-def run_screening(payload: ScreeningRequest, session=Depends(session_dep)):
+def run_screening(payload: ScreeningRequest, session=Depends(session_dep), user=Depends(auth_dep)):
     cache_key = f"screen:{json.dumps(payload.dict(), ensure_ascii=False)}"
     cached = cache_get(cache_key)
     if cached:
@@ -254,6 +373,12 @@ def run_screening(payload: ScreeningRequest, session=Depends(session_dep)):
     items = screen_stocks(session, payload.dict())
     response = {"total": len(items), "items": items}
     cache_set(cache_key, response, ttl=300)
+    log_user_action(
+        session,
+        user_id=user.id,
+        action_type="run_screening",
+        action_detail=f"运行选股, 命中{len(items)}只股票"
+    )
     return response
 
 @router.post("/screening/export")
@@ -273,12 +398,14 @@ def export_screening(payload: ScreeningExportRequest, session=Depends(session_de
 @router.post("/screening/preset")
 def save_preset(payload: PresetRequest, session=Depends(session_dep), user=Depends(auth_dep)):
     preset = session.exec(select(ScreeningPreset).where(ScreeningPreset.name == payload.name)).first()
+    action = "更新" if preset else "新建"
     if preset:
         preset.payload_json = json.dumps(payload.payload, ensure_ascii=False)
     else:
         preset = ScreeningPreset(name=payload.name, payload_json=json.dumps(payload.payload, ensure_ascii=False))
         session.add(preset)
     session.commit()
+    log_user_action(session, user_id=user.id, action_type="save_preset", action_detail=f"{action}选股方案: {payload.name}")
     return {"status": "ok"}
 
 @router.get("/screening/preset")
@@ -316,6 +443,12 @@ def scan_patterns(payload: PatternScanRequest, session=Depends(session_dep), use
             session.add(PatternResult(symbol=symbol, pattern_name=item["pattern_name"], detected_date=item["detected_date"], success_rate=item["success_rate"], score=item["score"]))
         results.append({"symbol": symbol, "name": stock.name, "patterns": patterns})
     session.commit()
+    log_user_action(
+        session,
+        user_id=user.id,
+        action_type="pattern_scan",
+        action_detail=f"形态扫描: {','.join(payload.patterns)}, {len(symbols)}只股票"
+    )
     return results
 
 @router.get("/patterns/library")
@@ -411,6 +544,12 @@ def run_strategy_backtest(payload: BacktestRequest, session=Depends(session_dep)
         ))
         results.append({"symbol": symbol, **metrics, "equity_curve": result["equity_curve"], "dates": result["dates"]})
     session.commit()
+    log_user_action(
+        session,
+        user_id=user.id,
+        action_type="run_backtest",
+        action_detail=f"运行回测: {payload.strategy_name}, {len(payload.symbols)}只股票, {payload.start_date}~{payload.end_date}"
+    )
     return results
 
 @router.post("/export")
@@ -612,6 +751,7 @@ def sync_index_products(background_tasks: BackgroundTasks, session=Depends(sessi
     if SYNC_STATE["status"] == "running":
         raise HTTPException(status_code=400, detail="Task already running")
     background_tasks.add_task(run_sync_index_list_task)
+    log_user_action(session, user_id=user.id, action_type="run_sync", action_detail="启动指数/ETF产品同步")
     return {"status": "started", "message": "Index products sync started"}
 
 @router.post("/data/sync/index/daily")
@@ -630,4 +770,10 @@ def sync_index_daily_data(
         raise HTTPException(status_code=400, detail="无可同步指数/ETF")
     
     background_tasks.add_task(run_sync_index_daily_task, codes, payload.start_date, payload.end_date, payload.sync_type)
+    log_user_action(
+        session,
+        user_id=user.id,
+        action_type="run_sync",
+        action_detail=f"启动指数/ETF日线同步: {len(codes)}个产品, {payload.start_date}~{payload.end_date}"
+    )
     return {"status": "started", "count": len(codes), "codes": codes}

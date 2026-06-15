@@ -4,9 +4,7 @@
 
 @layer base {
     :root {
-        /* Pure, Clean Light Theme based on the screenshot */
         --background: 210 20% 98%;
-        /* Very light grey/blue tint */
         --foreground: 222.2 84% 4.9%;
 
         --card: 0 0% 100%;
@@ -16,7 +14,6 @@
         --popover-foreground: 222.2 84% 4.9%;
 
         --primary: 221 83% 53%;
-        /* Vivid Blue */
         --primary-foreground: 210 40% 98%;
 
         --secondary: 210 40% 96.1%;
@@ -32,16 +29,43 @@
         --destructive-foreground: 210 40% 98%;
 
         --border: 220 13% 91%;
-        /* Subtle borders */
         --input: 220 13% 91%;
         --ring: 221 83% 53%;
 
         --radius: 1rem;
-        /* Rounded-2xl default */
 
-        /* Chart Colors */
         --rise: 0 84% 60%;
         --fall: 142 71% 45%;
+    }
+
+    .dark {
+        --background: 222.2 84% 4.9%;
+        --foreground: 210 40% 98%;
+
+        --card: 222.2 84% 6.9%;
+        --card-foreground: 210 40% 98%;
+
+        --popover: 222.2 84% 6.9%;
+        --popover-foreground: 210 40% 98%;
+
+        --primary: 217.2 91.2% 59.8%;
+        --primary-foreground: 222.2 47.4% 11.2%;
+
+        --secondary: 217.2 32.6% 17.5%;
+        --secondary-foreground: 210 40% 98%;
+
+        --muted: 217.2 32.6% 17.5%;
+        --muted-foreground: 215 20.2% 65.1%;
+
+        --accent: 217.2 32.6% 17.5%;
+        --accent-foreground: 210 40% 98%;
+
+        --destructive: 0 62.8% 30.6%;
+        --destructive-foreground: 210 40% 98%;
+
+        --border: 217.2 32.6% 17.5%;
+        --input: 217.2 32.6% 17.5%;
+        --ring: 224.3 76.3% 48%;
     }
 }
 
@@ -59,11 +83,11 @@
 
 @layer utilities {
     .glass {
-        @apply bg-white/80 backdrop-blur-xl border border-white/50 shadow-lg;
+        @apply bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl border border-white/50 dark:border-slate-700/50 shadow-lg;
     }
 
     .glass-card {
-        @apply bg-white border border-slate-100 transition-all duration-300;
+        @apply bg-card border border-border transition-all duration-300;
         box-shadow: 0 2px 10px rgba(0, 0, 0, 0.04);
     }
 
@@ -71,7 +95,41 @@
         box-shadow: 0 8px 30px rgba(0, 0, 0, 0.06);
     }
 
-    /* Animation utilities */
+    .dark .glass-card {
+        box-shadow: 0 2px 10px rgba(0, 0, 0, 0.3);
+    }
+
+    .dark .glass-card:hover {
+        box-shadow: 0 8px 30px rgba(0, 0, 0, 0.4);
+    }
+
+    .scrollbar-thin::-webkit-scrollbar {
+        width: 6px;
+        height: 6px;
+    }
+
+    .scrollbar-thin::-webkit-scrollbar-track {
+        background: transparent;
+    }
+
+    .scrollbar-thin::-webkit-scrollbar-thumb {
+        background: hsl(var(--border));
+        border-radius: 3px;
+    }
+
+    .scrollbar-thin::-webkit-scrollbar-thumb:hover {
+        background: hsl(var(--muted-foreground));
+    }
+
+    .scrollbar-none::-webkit-scrollbar {
+        display: none;
+    }
+
+    .scrollbar-none {
+        -ms-overflow-style: none;
+        scrollbar-width: none;
+    }
+
     .animate-fade-in-up {
         animation: fadeInUp 0.5s ease-out forwards;
     }
@@ -80,6 +138,36 @@
         from {
             opacity: 0;
             transform: translateY(20px);
+        }
+
+        to {
+            opacity: 1;
+            transform: translateY(0);
+        }
+    }
+
+    .animate-fade-in {
+        animation: fadeIn 0.2s ease-out forwards;
+    }
+
+    @keyframes fadeIn {
+        from {
+            opacity: 0;
+        }
+
+        to {
+            opacity: 1;
+        }
+    }
+
+    .animate-slide-down {
+        animation: slideDown 0.2s ease-out forwards;
+    }
+
+    @keyframes slideDown {
+        from {
+            opacity: 0;
+            transform: translateY(-8px);
         }
 
         to {
