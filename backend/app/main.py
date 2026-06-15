@@ -7,7 +7,7 @@ from apscheduler.schedulers.background import BackgroundScheduler
 from app.core.config import settings
 from app.db import init_db, get_session
 from app.routers import router
-from app.services.seed import seed_basic_data
+from app.services.seed import seed_basic_data, seed_concept_data
 from app.services.data_sync import sync_stock_list, sync_daily
 from app.models import Stock
 from sqlmodel import select
@@ -23,6 +23,7 @@ async def lifespan(app: FastAPI):
     init_db()
     session = get_session()
     seed_basic_data(session)
+    seed_concept_data(session)
     init_scheduler()
     yield
     logger.info("Backend shutting down")

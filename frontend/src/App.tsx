@@ -8,6 +8,8 @@ import Patterns from './pages/Patterns'
 import Strategies from './pages/Strategies'
 import Backtest from './pages/Backtest'
 import Visual from './pages/Visual'
+import Concept from './pages/Concept'
+import ConceptDetail from './pages/ConceptDetail'
 import Settings from './pages/Settings'
 import SystemLogs from './pages/SystemLogs'
 import Login from './pages/Login'
@@ -43,6 +45,8 @@ function App() {
                     <Route path="/strategies" element={<Strategies />} />
                     <Route path="/backtest" element={<Backtest />} />
                     <Route path="/visual" element={<Visual />} />
+                    <Route path="/concept" element={<Concept />} />
+                    <Route path="/concept/:code" element={<ConceptDetail />} />
                     <Route path="/settings" element={<Settings />} />
                     <Route path="/logs" element={<SystemLogs />} />
                 </Route>

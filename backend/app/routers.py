@@ -4,7 +4,7 @@ import inspect
 from datetime import date, timedelta
 from typing import List, Optional
 from sqlalchemy import func, distinct
-from fastapi import APIRouter, Depends, HTTPException, Header
+from fastapi import APIRouter, Depends, HTTPException, Header, Query
 from fastapi.responses import StreamingResponse
 import pandas as pd
 from sqlmodel import select
@@ -18,6 +18,14 @@ from app.services.strategies import get_strategy_map
 from app.services.backtest import run_backtest
 from app.services.cache import cache_get, cache_set
 from app.services.auth import verify_password, issue_token, get_token_payload
+from app.services.concept import (
+    get_concept_list,
+    get_concept_detail,
+    get_concept_constituents,
+    get_concept_leaderboard,
+    get_stock_concepts,
+    get_related_concepts,
+)
 
 router = APIRouter(prefix="/api/v1")
 
@@ -455,3 +463,48 @@ def delete_system_logs(payload: LogDeleteRequest, session=Depends(session_dep), 
         session.delete(log)
     session.commit()
     return {"status": "ok", "deleted": count}
+
+@router.get("/concept/list")
+def list_concepts(
+    keyword: str = "",
+    sort_by: str = Query("name", pattern="^(name|daily_change|five_day_change|constituent_count)$"),
+    sort_order: str = Query("asc", pattern="^(asc|desc)$"),
+    session=Depends(session_dep)
+):
+    results = get_concept_list(session, keyword=keyword, sort_by=sort_by, sort_order=sort_order)
+    return {"total": len(results), "items": results}
+
+@router.get("/concept/{code}/detail")
+def concept_detail(code: str, session=Depends(session_dep)):
+    detail = get_concept_detail(session, code)
+    if not detail:
+        raise HTTPException(status_code=404, detail="概念板块不存在")
+    return detail
+
+@router.get("/concept/{code}/constituents")
+def concept_constituents(code: str, session=Depends(session_dep)):
+    constituents = get_concept_constituents(session, code)
+    return {"total": len(constituents), "items": constituents}
+
+@router.get("/concept/leaderboard")
+def concept_leaderboard(
+    days: int = Query(5, ge=1, le=250),
+    limit: int = Query(20, ge=1, le=100),
+    session=Depends(session_dep)
+):
+    results = get_concept_leaderboard(session, days=days, limit=limit)
+    return {"days": days, "items": results}
+
+@router.get("/concept/stock/{symbol}")
+def stock_concepts(symbol: str, session=Depends(session_dep)):
+    concepts = get_stock_concepts(session, symbol)
+    return {"symbol": symbol, "total": len(concepts), "items": concepts}
+
+@router.get("/concept/{code}/related")
+def related_concepts(
+    code: str,
+    limit: int = Query(10, ge=1, le=50),
+    session=Depends(session_dep)
+):
+    related = get_related_concepts(session, code, limit=limit)
+    return {"items": related}

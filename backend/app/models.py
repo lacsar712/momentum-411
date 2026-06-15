@@ -119,3 +119,21 @@ class StockSnapshot(SQLModel, table=True):
     liquidity: Optional[float] = None
     # 更新时间
     updated_at: datetime = Field(default_factory=datetime.utcnow)
+
+class ConceptBoard(SQLModel, table=True):
+    """概念板块定义表"""
+    id: Optional[int] = Field(default=None, primary_key=True)
+    code: str = Field(index=True, unique=True)
+    name: str = Field(index=True)
+    description: Optional[str] = None
+    category: Optional[str] = None
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+    updated_at: datetime = Field(default_factory=datetime.utcnow)
+
+class StockConceptMap(SQLModel, table=True):
+    """股票-概念板块多对多映射表"""
+    id: Optional[int] = Field(default=None, primary_key=True)
+    stock_id: int = Field(foreign_key="stock.id", index=True)
+    concept_id: int = Field(foreign_key="conceptboard.id", index=True)
+    weight: Optional[float] = None
+    created_at: datetime = Field(default_factory=datetime.utcnow)
