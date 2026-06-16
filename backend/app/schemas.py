@@ -302,3 +302,38 @@ class RebalanceResponse(BaseModel):
     needs_rebalance: bool
     suggestions: List[RebalanceSuggestion]
     portfolio_value: Optional[float] = None
+
+# ==================== 风险指标 Schema ====================
+
+class RiskBaseRequest(BaseModel):
+    symbols: List[str]
+    start_date: date
+    end_date: date
+
+
+class RiskVarRequest(RiskBaseRequest):
+    confidence_levels: Optional[List[float]] = Field(default_factory=lambda: [0.95, 0.99])
+    holding_period: int = Field(default=1, ge=1, le=252)
+
+
+class RiskBetaRequest(RiskBaseRequest):
+    benchmark_code: str = Field(default="000300")
+
+
+class RiskCorrelationRequest(RiskBaseRequest):
+    pass
+
+
+class RiskMetricsRequest(RiskBaseRequest):
+    pass
+
+
+class RiskRollingBetaRequest(RiskBetaRequest):
+    window: int = Field(default=60, ge=20, le=252)
+
+
+class RiskAllRequest(RiskBaseRequest):
+    benchmark_code: str = Field(default="000300")
+    confidence_levels: Optional[List[float]] = Field(default_factory=lambda: [0.95, 0.99])
+    holding_period: int = Field(default=1, ge=1, le=252)
+    rolling_window: int = Field(default=60, ge=20, le=252)

@@ -20,6 +20,7 @@ import Permissions from './pages/Permissions'
 import Notifications from './pages/Notifications'
 import NotificationPreferences from './pages/NotificationPreferences'
 import PortfolioMgmt from './pages/PortfolioMgmt'
+import Risk from './pages/Risk'
 import Login from './pages/Login'
 
 function App() {
@@ -65,6 +66,7 @@ function App() {
                     <Route path="/notifications" element={<Notifications />} />
                     <Route path="/notifications/preferences" element={<NotificationPreferences />} />
                     <Route path="/portfolio_mgmt" element={<PortfolioMgmt />} />
+                    <Route path="/risk" element={<Risk />} />
                 </Route>
             </Route>
             <Route path="*" element={<Navigate to="/" replace />} />

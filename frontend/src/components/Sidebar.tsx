@@ -1,5 +1,5 @@
 import { NavLink, useNavigate } from 'react-router-dom'
-import { BarChart3, Database, Layers, LineChart, ScrollText, Settings, Sparkles, Timer, TrendingUp, LogOut, User, Boxes, CandlestickChart, GitCompare, Shield, Bell, PieChart } from 'lucide-react'
+import { BarChart3, Database, Layers, LineChart, ScrollText, Settings, Sparkles, Timer, TrendingUp, LogOut, User, Boxes, CandlestickChart, GitCompare, Shield, Bell, PieChart, ShieldAlert } from 'lucide-react'
 import { useAuth } from '../lib/auth'
 
 const items = [
@@ -14,6 +14,7 @@ const items = [
     { to: '/backtest', label: '历史回测', icon: Timer },
     { to: '/visual', label: '高级可视化', icon: LineChart },
     { to: '/portfolio_mgmt', label: '投资组合', icon: PieChart },
+    { to: '/risk', label: '风险指标', icon: ShieldAlert },
     { to: '/notifications', label: '通知中心', icon: Bell },
     { to: '/settings', label: '系统设置', icon: Settings },
     { to: '/logs', label: '运行日志', icon: ScrollText },
