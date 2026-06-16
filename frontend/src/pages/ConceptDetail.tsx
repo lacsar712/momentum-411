@@ -1,7 +1,7 @@
 import { useEffect, useState, useMemo } from 'react'
 import { useParams, useNavigate, Link } from 'react-router-dom'
 import ReactECharts from 'echarts-for-react'
-import { ArrowLeft, Layers, TrendingUp, TrendingDown, Users, BarChart2, Network } from 'lucide-react'
+import { ArrowLeft, Layers, TrendingUp, Users, BarChart2, Network } from 'lucide-react'
 import Loading from '../components/Loading'
 import { api } from '../lib/api'
 
@@ -194,7 +194,7 @@ export default function ConceptDetail() {
                 itemStyle: { color: '#3b82f6' },
                 label: { show: true, fontSize: 14, fontWeight: 'bold' }
             },
-            ...relatedConcepts.map((c, i) => ({
+            ...relatedConcepts.map((c) => ({
                 name: c.name,
                 symbolSize: 30 + (c.overlap_count / detail.constituent_count) * 40,
                 category: 1,

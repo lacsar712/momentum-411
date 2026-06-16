@@ -5,7 +5,6 @@ import { GitCompare, Plus, X, TrendingUp, TrendingDown, Activity, Target, Calend
 import Loading from '../components/Loading'
 import { api } from '../lib/api'
 import DatePicker from '../components/DatePicker'
-import Select from '../components/Select'
 
 interface CompareSeries {
     code: string

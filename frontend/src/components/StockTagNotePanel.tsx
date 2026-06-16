@@ -17,9 +17,9 @@ const DEFAULT_COLORS = [
     '#ec4899', '#06b6d4', '#f97316', '#64748b', '#84cc16'
 ]
 
-export default function StockTagNotePanel({ symbol, stockName }: StockTagNotePanelProps) {
+export default function StockTagNotePanel({ symbol }: StockTagNotePanelProps) {
     const { pushToast } = useToast()
-    const [loading, setLoading] = useState(true)
+    const [, setLoading] = useState(true)
     const [tags, setTags] = useState<StockTag[]>([])
     const [notes, setNotes] = useState<StockNote[]>([])
     const [allTags, setAllTags] = useState<StockTag[]>([])

@@ -9,7 +9,7 @@ import { api } from '../lib/api'
 import Loading from '../components/Loading'
 import Modal from '../components/Modal'
 import Select from '../components/Select'
-import { toast } from '../components/Toast'
+import { useToast } from '../components/Toast'
 
 interface Portfolio {
     id: number
@@ -94,9 +94,6 @@ const BENCHMARK_OPTIONS = [
 const formatPercent = (v: number | undefined, digits = 2) =>
     v === undefined || v === null ? '--' : `${(v * 100).toFixed(digits)}%`
 
-const formatPercentNum = (v: number | undefined, digits = 2) =>
-    v === undefined || v === null ? '--' : `${v.toFixed(digits)}%`
-
 const formatCurrency = (v: number | undefined) =>
     v === undefined || v === null ? '--'
         : v >= 1e8 ? `${(v / 1e8).toFixed(2)}亿`
@@ -113,6 +110,11 @@ const colorForDeviation = (dev: number | undefined) => {
 }
 
 export default function PortfolioMgmt() {
+    const { pushToast } = useToast()
+    const toast = {
+        success: (m: string) => pushToast(m, 'success'),
+        error: (m: string) => pushToast(m, 'error'),
+    }
     const [portfolios, setPortfolios] = useState<Portfolio[]>([])
     const [selectedId, setSelectedId] = useState<number | null>(null)
     const [loading, setLoading] = useState(true)
@@ -621,7 +623,7 @@ export default function PortfolioMgmt() {
                                     <div>
                                         <h3 className="text-base font-bold text-slate-900">目标权重分布</h3>
                                         <p className="text-xs text-slate-400 mt-0.5">
-                                            合计: <b className={abs(totalTargetWeight - 100) < 0.5 ? 'text-emerald-600' : 'text-orange-500'}>
+                                            合计: <b className={Math.abs(totalTargetWeight - 100) < 0.5 ? 'text-emerald-600' : 'text-orange-500'}>
                                                 {totalTargetWeight.toFixed(2)}%
                                             </b>
                                         </p>
@@ -663,7 +665,7 @@ export default function PortfolioMgmt() {
                                     <h3 className="text-base font-bold text-slate-900">成分股明细</h3>
                                     <p className="text-xs text-slate-400 mt-0.5">
                                         {selected.holdings.length} 只成分股 · 目标权重合计 {totalTargetWeight.toFixed(2)}%
-                                        {abs(totalTargetWeight - 100) >= 0.5 && (
+                                        {Math.abs(totalTargetWeight - 100) >= 0.5 && (
                                             <span className="text-orange-500 ml-2">（注意：权重非100%）</span>
                                         )}
                                     </p>

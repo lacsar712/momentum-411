@@ -76,6 +76,8 @@ interface MetricsItem {
 
 interface RollingBetaData {
     dates: string[]
+    benchmark_name: string
+    benchmark_code: string
     items: Record<string, {
         name: string
         series: (number | null)[]

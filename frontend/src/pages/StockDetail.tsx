@@ -324,7 +324,7 @@ export default function StockDetail() {
             </div>
 
             <div ref={notePanelRef}>
-                <StockTagNotePanel symbol={symbol} stockName={stock.name} />
+                <StockTagNotePanel symbol={symbol!} stockName={stock.name} />
             </div>
         </div>
     )

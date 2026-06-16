@@ -42,3 +42,6 @@ yarn-error.log*
 .env
 postgres_data/
 redis_data/
+
+# Docs/Notes
+trae/

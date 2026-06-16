@@ -338,7 +338,7 @@ def run_sync_daily_task(symbols, start_date, end_date, sync_type, user_id: int =
 
 
 @router.post("/data/sync/stocks")
-def sync_stocks(background_tasks: BackgroundTasks, session=Depends(session_dep), user=Depends(require_permission("data.sync")):
+def sync_stocks(background_tasks: BackgroundTasks, session=Depends(session_dep), user=Depends(require_permission("data.sync"))):
     if SYNC_STATE["status"] == "running":
         raise HTTPException(status_code=400, detail="Task already running")
     background_tasks.add_task(run_sync_stock_list_task, user.id)
@@ -346,11 +346,11 @@ def sync_stocks(background_tasks: BackgroundTasks, session=Depends(session_dep),
     return {"status": "started", "message": "Stock sync started in background"}
 
 @router.post("/data/sync/daily")
-def sync_daily_data(payload: DateRangeRequest, background_tasks: BackgroundTasks, session=Depends(session_dep), user=Depends(require_permission("data.sync")):
+def sync_daily_data(payload: DateRangeRequest, background_tasks: BackgroundTasks, session=Depends(session_dep), user=Depends(require_permission("data.sync"))):
     if SYNC_STATE["status"] == "running":
         raise HTTPException(status_code=400, detail="Task already running")
     
-    symbols = payload.symbols or [s.symbol for s in session.exec(select(Stock)).all()
+    symbols = payload.symbols or [s.symbol for s in session.exec(select(Stock)).all()]
     if not symbols:
         raise HTTPException(status_code=400, detail="无可同步股票")
     
@@ -383,7 +383,7 @@ def run_snapshot_update_task(user_id: int = None):
         _send_task_notification(user_id, "snapshot", task_name, False, error_msg)
 
 @router.post("/data/snapshot/update")
-def update_snapshots(background_tasks: BackgroundTasks, session=Depends(session_dep), user=Depends(require_permission("data.sync")):
+def update_snapshots(background_tasks: BackgroundTasks, session=Depends(session_dep), user=Depends(require_permission("data.sync"))):
     """手动触发快照更新"""
     if SYNC_STATE["status"] == "running":
         raise HTTPException(status_code=400, detail="Task already running")
@@ -890,7 +890,7 @@ def index_constituents(code: str, session=Depends(session_dep)):
     return result
 
 @router.post("/data/sync/index/products")
-def sync_index_products(background_tasks: BackgroundTasks, session=Depends(session_dep), user=Depends(require_permission("data.sync")):
+def sync_index_products(background_tasks: BackgroundTasks, session=Depends(session_dep), user=Depends(require_permission("data.sync"))):
     """初始化指数/ETF产品列表"""
     if SYNC_STATE["status"] == "running":
         raise HTTPException(status_code=400, detail="Task already running")

@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, ChangeEvent } from 'react'
-import { User, Lock, History, Upload, Camera, Check, X, Eye, EyeOff } from 'lucide-react'
+import { User, Lock, History, Camera, Check, X, Eye, EyeOff } from 'lucide-react'
 import { useAuth } from '../lib/auth'
 import { api } from '../lib/api'
 import { useToast } from '../components/Toast'
@@ -345,12 +345,6 @@ export default function Profile() {
                                         <div className="space-y-1">
                                             <p className="text-xs font-medium text-muted-foreground">密码规则：</p>
                                             {['至少 8 位', '包含小写字母', '包含大写字母', '包含数字', '包含特殊字符'].map((rule, i) => {
-                                                const passed = passwordStrength.score > i || 
-                                                    (i === 0 && passwordStrength.score >= 1) ||
-                                                    (i === 1 && /[a-z]/.test(newPassword)) ||
-                                                    (i === 2 && /[A-Z]/.test(newPassword)) ||
-                                                    (i === 3 && /[0-9]/.test(newPassword)) ||
-                                                    (i === 4 && /[!@#$%^&*(),.?":{}|<>]/.test(newPassword))
                                                 const isActuallyPassed = i === 0 ? newPassword.length >= 8 :
                                                     i === 1 ? /[a-z]/.test(newPassword) :
                                                     i === 2 ? /[A-Z]/.test(newPassword) :

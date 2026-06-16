@@ -66,7 +66,7 @@ const RULE_COLORS: Record<string, string> = {
 }
 
 export default function Recommend() {
-    const { toast } = useToast()
+    const { pushToast } = useToast()
     const [loading, setLoading] = useState(true)
     const [rules, setRules] = useState<ScoringRule[]>([])
     const [ruleConfigs, setRuleConfigs] = useState<RuleConfig[]>([])
@@ -114,11 +114,7 @@ export default function Recommend() {
             await runRecommendation(configs)
         } catch (e: any) {
             console.error('加载初始数据失败:', e)
-            toast({
-                title: '加载失败',
-                description: e.response?.data?.detail || '无法加载评分规则',
-                severity: 'error',
-            })
+            pushToast(e.response?.data?.detail || '无法加载评分规则', 'error')
         } finally {
             setLoading(false)
         }
@@ -133,13 +129,9 @@ export default function Recommend() {
             setRecommendations(res.data.items)
         } catch (e: any) {
             console.error('获取推荐失败:', e)
-            toast({
-                title: '推荐失败',
-                description: e.response?.data?.detail || '无法获取推荐结果',
-                severity: 'error',
-            })
+            pushToast(e.response?.data?.detail || '无法获取推荐结果', 'error')
         }
-    }, [topN, toast])
+    }, [topN, pushToast])
 
     const handleWeightChange = (ruleId: string, weight: number) => {
         const newConfigs = ruleConfigs.map((c) =>
@@ -159,10 +151,7 @@ export default function Recommend() {
 
     const handleSaveCard = async () => {
         if (!saveName.trim()) {
-            toast({
-                title: '请输入方案名称',
-                severity: 'warning',
-            })
+            pushToast('请输入方案名称', 'info')
             return
         }
 
@@ -182,11 +171,7 @@ export default function Recommend() {
                 is_default: saveAsDefault,
             })
 
-            toast({
-                title: '保存成功',
-                description: `评分卡方案 "${saveName}" 已保存`,
-                severity: 'success',
-            })
+            pushToast(`评分卡方案 "${saveName}" 已保存`, 'success')
 
             setShowSaveModal(false)
             setSaveName('')
@@ -197,11 +182,7 @@ export default function Recommend() {
             setScoringCards(res.data.items)
         } catch (e: any) {
             console.error('保存评分卡失败:', e)
-            toast({
-                title: '保存失败',
-                description: e.response?.data?.detail || '无法保存评分卡方案',
-                severity: 'error',
-            })
+            pushToast(e.response?.data?.detail || '无法保存评分卡方案', 'error')
         }
     }
 
@@ -225,17 +206,10 @@ export default function Recommend() {
             if (selectedCardId === cardId) {
                 setSelectedCardId(null)
             }
-            toast({
-                title: '删除成功',
-                severity: 'success',
-            })
+            pushToast('删除成功', 'success')
         } catch (e: any) {
             console.error('删除评分卡失败:', e)
-            toast({
-                title: '删除失败',
-                description: e.response?.data?.detail || '无法删除评分卡方案',
-                severity: 'error',
-            })
+            pushToast(e.response?.data?.detail || '无法删除评分卡方案', 'error')
         }
     }
 
@@ -458,19 +432,20 @@ export default function Recommend() {
                                     (Top {topN})
                                 </span>
                             </h2>
-                            <Select
-                                value={String(topN)}
-                                onChange={(v) => {
-                                    setTopN(parseInt(v))
-                                    runRecommendation(ruleConfigs)
-                                }}
-                                options={[
-                                    { value: '10', label: 'Top 10' },
-                                    { value: '20', label: 'Top 20' },
-                                    { value: '50', label: 'Top 50' },
-                                ]}
-                                className="w-28"
-                            />
+                            <div className="w-28">
+                                <Select
+                                    value={String(topN)}
+                                    onChange={(v) => {
+                                        setTopN(parseInt(v))
+                                        runRecommendation(ruleConfigs)
+                                    }}
+                                    options={[
+                                        { value: '10', label: 'Top 10' },
+                                        { value: '20', label: 'Top 20' },
+                                        { value: '50', label: 'Top 50' },
+                                    ]}
+                                />
+                            </div>
                         </div>
 
                         <div className="flex-1 overflow-auto min-h-0">
@@ -651,7 +626,7 @@ export default function Recommend() {
             </div>
 
             <Modal
-                isOpen={showSaveModal}
+                open={showSaveModal}
                 onClose={() => setShowSaveModal(false)}
                 title="保存评分卡方案"
             >

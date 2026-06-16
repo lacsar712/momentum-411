@@ -4,7 +4,6 @@ import { format } from 'date-fns'
 import { zhCN } from 'date-fns/locale'
 import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query'
 import {
-    Bell,
     Check,
     Trash2,
     Settings,
@@ -63,7 +62,7 @@ export default function Notifications() {
         return params
     }, [page, filters])
 
-    const { data, isLoading, refetch } = useQuery({
+    const { data, isLoading } = useQuery({
         queryKey: ['notifications', 'list', queryParams],
         queryFn: () => getNotifications(queryParams),
     })

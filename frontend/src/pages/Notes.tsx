@@ -5,7 +5,7 @@ import Loading from '../components/Loading'
 import { api } from '../lib/api'
 import { useToast } from '../components/Toast'
 import { StockTag, StockNote } from '../types/stockNotes'
-import { renderMarkdown, getNoteExcerpt } from '../utils/markdown'
+import { renderMarkdown } from '../utils/markdown'
 import { format } from 'date-fns'
 import { zhCN } from 'date-fns/locale'
 
@@ -21,7 +21,6 @@ export default function Notes() {
     const [keyword, setKeyword] = useState('')
     const [selectedTagId, setSelectedTagId] = useState<number | null>(null)
     const [page, setPage] = useState(1)
-    const [selectedNote, setSelectedNote] = useState<StockNote | null>(null)
     const [showMobileSidebar, setShowMobileSidebar] = useState(true)
     
     const pageSize = 10
@@ -132,7 +131,6 @@ export default function Notes() {
                                         backgroundColor: `${tag.color}15`,
                                         color: tag.color,
                                         fontSize: `${getTagFontSize(tag.stock_count)}px`,
-                                        ringColor: tag.color,
                                     }}
                                 >
                                     {tag.name}

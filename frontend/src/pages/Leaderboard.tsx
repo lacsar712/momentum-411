@@ -260,11 +260,8 @@ export default function Leaderboard() {
     }
 
     const handleRowClick = (symbol: string) => {
-        // TODO: 跳转到个股详情页
-        console.log('Navigate to stock detail:', symbol)
+        navigate(`/stock/${symbol}`)
     }
-
-    const activeDimInfo = DIMENSIONS.find(d => d.key === activeDimension)
 
     return (
         <div className="space-y-6">
@@ -341,7 +338,7 @@ export default function Leaderboard() {
                     <div className="bg-white rounded-xl shadow-sm border border-slate-100 overflow-hidden">
                         {loading ? (
                             <div className="h-[600px] flex items-center justify-center">
-                                <Loading size="lg" />
+                                <Loading />
                             </div>
                         ) : (
                             <div className="overflow-x-auto">

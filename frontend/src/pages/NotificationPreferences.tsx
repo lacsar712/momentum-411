@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { Settings, Bell, ArrowLeft, Save, TrendingUp, TrendingDown, Info } from 'lucide-react'
@@ -20,10 +20,13 @@ export default function NotificationPreferences() {
     const { data, isLoading } = useQuery({
         queryKey: ['notifications', 'preferences'],
         queryFn: getNotificationPreferences,
-        onSuccess: (res) => {
-            setLocalPrefs(res.preferences)
-        },
     })
+
+    useEffect(() => {
+        if (data) {
+            setLocalPrefs(data.preferences)
+        }
+    }, [data])
 
     const mutation = useMutation({
         mutationFn: updateNotificationPreferences,
@@ -71,7 +74,6 @@ export default function NotificationPreferences() {
 
     if (isLoading) return <Loading />
 
-    const preferences = data?.preferences || []
     const availableTypes = data?.available_types || []
     const typeConfigMap: Record<string, NotificationTypeConfig> = {}
     availableTypes.forEach((t) => {
