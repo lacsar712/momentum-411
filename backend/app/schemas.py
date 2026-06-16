@@ -200,3 +200,105 @@ class WatchlistRemoveRequest(BaseModel):
 class WatchlistResponse(BaseModel):
     total: int
     items: List[WatchlistItem]
+
+# ==================== 投资组合管理 Schema ====================
+
+class PortfolioHoldingItem(BaseModel):
+    id: Optional[int] = None
+    symbol: str
+    name: Optional[str] = None
+    target_weight: float
+    current_weight: Optional[float] = None
+    weight_deviation: Optional[float] = None
+    latest_price: Optional[float] = None
+    daily_change: Optional[float] = None
+
+class PortfolioBase(BaseModel):
+    name: str
+    description: Optional[str] = None
+    benchmark_code: Optional[str] = "000300"
+    rebalance_frequency: Optional[str] = "monthly"
+
+class PortfolioCreateRequest(PortfolioBase):
+    holdings: List[PortfolioHoldingItem] = []
+
+class PortfolioUpdateRequest(BaseModel):
+    name: Optional[str] = None
+    description: Optional[str] = None
+    benchmark_code: Optional[str] = None
+    rebalance_frequency: Optional[str] = None
+
+class PortfolioCopyRequest(BaseModel):
+    new_name: str
+
+class PortfolioResponse(BaseModel):
+    id: int
+    user_id: int
+    name: str
+    description: Optional[str] = None
+    benchmark_code: str
+    rebalance_frequency: str
+    created_at: datetime
+    updated_at: datetime
+    holdings: List[PortfolioHoldingItem] = []
+
+class PortfolioListResponse(BaseModel):
+    total: int
+    items: List[PortfolioResponse]
+
+class PortfolioHoldingCreateRequest(BaseModel):
+    symbol: str
+    target_weight: float
+
+class PortfolioHoldingUpdateRequest(BaseModel):
+    target_weight: Optional[float] = None
+
+class PortfolioHoldingsBatchSaveRequest(BaseModel):
+    holdings: List[PortfolioHoldingItem]
+
+class PortfolioHoldingsResponse(BaseModel):
+    total: int
+    items: List[PortfolioHoldingItem]
+
+class PortfolioNavPoint(BaseModel):
+    trade_date: date
+    portfolio_nav: float
+    benchmark_nav: float
+
+class PortfolioNavResponse(BaseModel):
+    start_date: date
+    end_date: date
+    rebalance_frequency: str
+    rebalance_count: int
+    data: List[PortfolioNavPoint]
+
+class PortfolioMetricsResponse(BaseModel):
+    annual_return: float
+    benchmark_annual_return: float
+    excess_return: float
+    max_drawdown: float
+    benchmark_max_drawdown: float
+    sharpe_ratio: float
+    information_ratio: float
+    correlation: float
+    total_return: float
+    benchmark_total_return: float
+    volatility: float
+    benchmark_volatility: float
+
+class RebalanceSuggestion(BaseModel):
+    symbol: str
+    name: Optional[str] = None
+    target_weight: float
+    current_weight: float
+    deviation: float
+    action: str
+    suggested_amount: float
+    latest_price: Optional[float] = None
+
+class RebalanceResponse(BaseModel):
+    threshold: float
+    total_deviation: float
+    needs_rebalance: bool
+    suggestions: List[RebalanceSuggestion]
+    portfolio_value: Optional[float] = None

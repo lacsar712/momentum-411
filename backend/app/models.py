@@ -230,3 +230,25 @@ class UserWatchlist(SQLModel, table=True):
     symbol: str = Field(index=True)
     notes: Optional[str] = None
     created_at: datetime = Field(default_factory=datetime.utcnow)
+
+class Portfolio(SQLModel, table=True):
+    """投资组合表"""
+    id: Optional[int] = Field(default=None, primary_key=True)
+    user_id: int = Field(foreign_key="user.id", index=True)
+    name: str = Field(index=True)
+    description: Optional[str] = None
+    benchmark_code: Optional[str] = Field(default="000300", description="基准指数代码，默认沪深300")
+    rebalance_frequency: str = Field(default="monthly", description="再平衡频率: daily/weekly/monthly/quarterly/yearly")
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+    updated_at: datetime = Field(default_factory=datetime.utcnow)
+    holdings: List["PortfolioHolding"] = Relationship(back_populates="portfolio", sa_relationship_kwargs={"cascade": "all, delete-orphan"})
+
+class PortfolioHolding(SQLModel, table=True):
+    """组合持仓表"""
+    id: Optional[int] = Field(default=None, primary_key=True)
+    portfolio_id: int = Field(foreign_key="portfolio.id", index=True)
+    symbol: str = Field(index=True)
+    target_weight: float = Field(description="目标权重，0-100 百分比")
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+    updated_at: datetime = Field(default_factory=datetime.utcnow)
+    portfolio: Optional[Portfolio] = Relationship(back_populates="holdings")
