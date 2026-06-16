@@ -199,3 +199,34 @@ class IndexDailyPrice(SQLModel, table=True):
     volume: float
     amount: Optional[float] = None
     index_product: Optional[IndexProduct] = Relationship(back_populates="prices")
+
+class Notification(SQLModel, table=True):
+    """通知中心表"""
+    id: Optional[int] = Field(default=None, primary_key=True)
+    user_id: int = Field(foreign_key="user.id", index=True)
+    type: str = Field(index=True)
+    title: str
+    content: Optional[str] = None
+    link_url: Optional[str] = None
+    severity: str = Field(default="info")
+    is_read: bool = Field(default=False, index=True)
+    created_at: datetime = Field(default_factory=datetime.utcnow, index=True)
+
+class NotificationPreference(SQLModel, table=True):
+    """用户通知偏好设置表"""
+    id: Optional[int] = Field(default=None, primary_key=True)
+    user_id: int = Field(foreign_key="user.id", index=True)
+    notification_type: str = Field(index=True)
+    enabled: bool = Field(default=True)
+    threshold_up: Optional[float] = None
+    threshold_down: Optional[float] = None
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+    updated_at: datetime = Field(default_factory=datetime.utcnow)
+
+class UserWatchlist(SQLModel, table=True):
+    """用户自选股表"""
+    id: Optional[int] = Field(default=None, primary_key=True)
+    user_id: int = Field(foreign_key="user.id", index=True)
+    symbol: str = Field(index=True)
+    notes: Optional[str] = None
+    created_at: datetime = Field(default_factory=datetime.utcnow)

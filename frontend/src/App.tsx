@@ -17,6 +17,8 @@ import Settings from './pages/Settings'
 import SystemLogs from './pages/SystemLogs'
 import Profile from './pages/Profile'
 import Permissions from './pages/Permissions'
+import Notifications from './pages/Notifications'
+import NotificationPreferences from './pages/NotificationPreferences'
 import Login from './pages/Login'
 
 function App() {
@@ -59,6 +61,8 @@ function App() {
                     <Route path="/logs" element={<SystemLogs />} />
                     <Route path="/admin/permissions" element={<Permissions />} />
                     <Route path="/profile" element={<Profile />} />
+                    <Route path="/notifications" element={<Notifications />} />
+                    <Route path="/notifications/preferences" element={<NotificationPreferences />} />
                 </Route>
             </Route>
             <Route path="*" element={<Navigate to="/" replace />} />

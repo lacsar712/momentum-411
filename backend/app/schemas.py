@@ -141,3 +141,62 @@ class RoleDetailResponse(BaseModel):
 class MyPermissionsResponse(BaseModel):
     permissions: List[str]
     roles: List[str]
+
+class NotificationItem(BaseModel):
+    id: int
+    user_id: int
+    type: str
+    title: str
+    content: Optional[str] = None
+    link_url: Optional[str] = None
+    severity: str
+    is_read: bool
+    created_at: datetime
+
+class NotificationListResponse(BaseModel):
+    total: int
+    items: List[NotificationItem]
+
+class NotificationUnreadResponse(BaseModel):
+    unread_count: int
+
+class NotificationMarkReadRequest(BaseModel):
+    ids: Optional[List[int]] = None
+    mark_all: bool = False
+
+class NotificationDeleteRequest(BaseModel):
+    ids: List[int]
+
+class NotificationPreferenceItem(BaseModel):
+    id: Optional[int] = None
+    notification_type: str
+    enabled: bool
+    threshold_up: Optional[float] = None
+    threshold_down: Optional[float] = None
+
+class NotificationPreferenceUpdateRequest(BaseModel):
+    preferences: List[NotificationPreferenceItem]
+
+class NotificationPreferenceResponse(BaseModel):
+    preferences: List[NotificationPreferenceItem]
+    available_types: List[Dict[str, Any]]
+
+class WatchlistItem(BaseModel):
+    id: int
+    symbol: str
+    name: Optional[str] = None
+    notes: Optional[str] = None
+    created_at: datetime
+    latest_price: Optional[float] = None
+    daily_change: Optional[float] = None
+
+class WatchlistAddRequest(BaseModel):
+    symbol: str
+    notes: Optional[str] = None
+
+class WatchlistRemoveRequest(BaseModel):
+    symbol: str
+
+class WatchlistResponse(BaseModel):
+    total: int
+    items: List[WatchlistItem]

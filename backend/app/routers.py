@@ -9,8 +9,9 @@ from fastapi.responses import StreamingResponse, JSONResponse
 import pandas as pd
 from sqlmodel import select
 from app.db import get_session
-from app.models import Stock, DailyPrice, ScreeningPreset, PatternResult, BacktestResult, StrategyDefinition, User, DataSyncLog, UserActionLog, Role, Permission, RolePermission, UserRole
-from app.schemas import DateRangeRequest, DailyDataRequest, PriceRangeRequest, ScreeningRequest, ScreeningExportRequest, ScreeningResponse, PatternScanRequest, BacktestRequest, ExportRequest, PresetRequest, LoginRequest, AuthResponse, LogDeleteRequest, UserInfoResponse, ChangePasswordRequest, ActivityLogResponse, PreferencesUpdateRequest, PreferencesResponse, RoleCreateRequest, RoleUpdateRequest, UserRoleRequest, RolePermissionRequest, PermissionGroupResponse, UserDetailResponse, RoleDetailResponse, MyPermissionsResponse
+from app.models import Stock, DailyPrice, ScreeningPreset, PatternResult, BacktestResult, StrategyDefinition, User, DataSyncLog, UserActionLog, Role, Permission, RolePermission, UserRole, Notification, NotificationPreference, UserWatchlist, StockSnapshot
+from app.schemas import DateRangeRequest, DailyDataRequest, PriceRangeRequest, ScreeningRequest, ScreeningExportRequest, ScreeningResponse, PatternScanRequest, BacktestRequest, ExportRequest, PresetRequest, LoginRequest, AuthResponse, LogDeleteRequest, UserInfoResponse, ChangePasswordRequest, ActivityLogResponse, PreferencesUpdateRequest, PreferencesResponse, RoleCreateRequest, RoleUpdateRequest, UserRoleRequest, RolePermissionRequest, PermissionGroupResponse, UserDetailResponse, RoleDetailResponse, MyPermissionsResponse, NotificationItem, NotificationListResponse, NotificationUnreadResponse, NotificationMarkReadRequest, NotificationDeleteRequest, NotificationPreferenceUpdateRequest, NotificationPreferenceResponse, WatchlistItem, WatchlistAddRequest, WatchlistRemoveRequest, WatchlistResponse, NotificationPreferenceItem
+from app.services.notification import create_notification, get_all_preferences, NOTIFICATION_TYPES, check_price_alerts
 from app.services.data_sync import sync_stock_list, sync_daily, validate_integrity
 from app.services.screening import screen_stocks
 from app.services.patterns import detect_patterns, PATTERN_NAMES
@@ -228,7 +229,8 @@ SYNC_STATE = {
     "type": None, # stock_list, daily
     "current": 0,
     "total": 0,
-    "message": ""
+    "message": "",
+    "user_id": None,
 }
 
 def update_progress(current, total, message=""):
@@ -236,15 +238,51 @@ def update_progress(current, total, message=""):
     SYNC_STATE["total"] = total
     SYNC_STATE["message"] = message
 
+def _send_task_notification(user_id: int, task_type: str, task_name: str, success: bool, message: str = ""):
+    if not user_id:
+        return
+    try:
+        with get_session() as session:
+            severity = "success" if success else "error"
+            link_url = {
+                "stock_list": "/data",
+                "daily": "/data",
+                "snapshot": "/data",
+                "backtest": "/backtest",
+                "pattern_scan": "/patterns",
+                "index_list": "/index",
+                "index_daily": "/index",
+            }.get(task_type, "/notifications")
+            create_notification(
+                session,
+                user_id=user_id,
+                notification_type={
+                    "stock_list": "data_sync",
+                    "daily": "data_sync",
+                    "snapshot": "data_sync",
+                    "backtest": "backtest",
+                    "pattern_scan": "pattern_scan",
+                    "index_list": "data_sync",
+                    "index_daily": "data_sync",
+                }.get(task_type, "system"),
+                title=f"{task_name}{'成功' if success else '失败'}",
+                content=message or f"{task_name}已{'成功完成' if success else '执行失败'}",
+                link_url=link_url,
+                severity=severity,
+            )
+    except Exception as e:
+        print(f"[通知] 发送任务通知失败: {e}")
+
 @router.get("/data/sync/progress")
 def get_sync_progress():
     return SYNC_STATE
 
 
 
-def run_sync_stock_list_task():
+def run_sync_stock_list_task(user_id: int = None):
     global SYNC_STATE
-    SYNC_STATE.update({"status": "running", "type": "stock_list", "current": 0, "total": 0, "message": "正在启动..."})
+    SYNC_STATE.update({"status": "running", "type": "stock_list", "current": 0, "total": 0, "message": "正在启动...", "user_id": user_id})
+    task_name = "股票清单同步"
     try:
         # Create a new session for the background task
         with get_session() as session:
@@ -255,14 +293,19 @@ def run_sync_stock_list_task():
             from app.services.snapshot_updater import update_stock_snapshots
             snapshot_count = update_stock_snapshots(session, progress_callback=update_progress)
             
-            SYNC_STATE.update({"status": "finished", "current": count, "total": count, "message": f"任务全部完成。已同步 {count} 只股票，更新 {snapshot_count} 个快照。"})
+            message = f"任务全部完成。已同步 {count} 只股票，更新 {snapshot_count} 个快照。"
+            SYNC_STATE.update({"status": "finished", "current": count, "total": count, "message": message})
+            _send_task_notification(user_id, "stock_list", task_name, True, message)
     except Exception as e:
         print(f"Background task failed: {e}")
-        SYNC_STATE.update({"status": "error", "message": f"任务执行失败: {str(e)}"})
+        error_msg = f"任务执行失败: {str(e)}"
+        SYNC_STATE.update({"status": "error", "message": error_msg})
+        _send_task_notification(user_id, "stock_list", task_name, False, error_msg)
 
-def run_sync_daily_task(symbols, start_date, end_date, sync_type):
+def run_sync_daily_task(symbols, start_date, end_date, sync_type, user_id: int = None):
     global SYNC_STATE
-    SYNC_STATE.update({"status": "running", "type": "daily", "current": 0, "total": len(symbols), "message": "正在启动..."})
+    SYNC_STATE.update({"status": "running", "type": "daily", "current": 0, "total": len(symbols), "message": "正在启动...", "user_id": user_id})
+    task_name = "日线数据同步"
     try:
         # Create a new session for the background task
         with get_session() as session:
@@ -273,30 +316,34 @@ def run_sync_daily_task(symbols, start_date, end_date, sync_type):
             from app.services.snapshot_updater import update_stock_snapshots
             snapshot_count = update_stock_snapshots(session, progress_callback=update_progress)
             
-            SYNC_STATE.update({"status": "finished", "current": len(symbols), "total": len(symbols), "message": f"任务全部完成。已同步 {count} 条记录，更新 {snapshot_count} 个快照。"})
+            message = f"任务全部完成。已同步 {count} 条记录，更新 {snapshot_count} 个快照。"
+            SYNC_STATE.update({"status": "finished", "current": len(symbols), "total": len(symbols), "message": message})
+            _send_task_notification(user_id, "daily", task_name, True, message)
     except Exception as e:
         print(f"Background task failed: {e}")
-        SYNC_STATE.update({"status": "error", "message": f"任务执行失败: {str(e)}"})
+        error_msg = f"任务执行失败: {str(e)}"
+        SYNC_STATE.update({"status": "error", "message": error_msg})
+        _send_task_notification(user_id, "daily", task_name, False, error_msg)
 
 
 @router.post("/data/sync/stocks")
-def sync_stocks(background_tasks: BackgroundTasks, session=Depends(session_dep), user=Depends(require_permission("data.sync"))):
+def sync_stocks(background_tasks: BackgroundTasks, session=Depends(session_dep), user=Depends(require_permission("data.sync")):
     if SYNC_STATE["status"] == "running":
         raise HTTPException(status_code=400, detail="Task already running")
-    background_tasks.add_task(run_sync_stock_list_task)
+    background_tasks.add_task(run_sync_stock_list_task, user.id)
     log_user_action(session, user_id=user.id, action_type="run_sync", action_detail="启动股票清单同步")
     return {"status": "started", "message": "Stock sync started in background"}
 
 @router.post("/data/sync/daily")
-def sync_daily_data(payload: DateRangeRequest, background_tasks: BackgroundTasks, session=Depends(session_dep), user=Depends(require_permission("data.sync"))):
+def sync_daily_data(payload: DateRangeRequest, background_tasks: BackgroundTasks, session=Depends(session_dep), user=Depends(require_permission("data.sync")):
     if SYNC_STATE["status"] == "running":
         raise HTTPException(status_code=400, detail="Task already running")
     
-    symbols = payload.symbols or [s.symbol for s in session.exec(select(Stock)).all()]
+    symbols = payload.symbols or [s.symbol for s in session.exec(select(Stock)).all()
     if not symbols:
         raise HTTPException(status_code=400, detail="无可同步股票")
     
-    background_tasks.add_task(run_sync_daily_task, symbols, payload.start_date, payload.end_date, payload.sync_type)
+    background_tasks.add_task(run_sync_daily_task, symbols, payload.start_date, payload.end_date, payload.sync_type, user.id)
     log_user_action(
         session,
         user_id=user.id,
@@ -308,23 +355,28 @@ def sync_daily_data(payload: DateRangeRequest, background_tasks: BackgroundTasks
 # 导入快照更新服务
 from app.services.snapshot_updater import update_stock_snapshots
 
-def run_snapshot_update_task():
+def run_snapshot_update_task(user_id: int = None):
     global SYNC_STATE
-    SYNC_STATE.update({"status": "running", "type": "snapshot", "current": 0, "total": 0, "message": "更新快照中..."})
+    SYNC_STATE.update({"status": "running", "type": "snapshot", "current": 0, "total": 0, "message": "更新快照中...", "user_id": user_id})
+    task_name = "快照更新"
     try:
         with get_session() as session:
             count = update_stock_snapshots(session, progress_callback=update_progress)
-            SYNC_STATE.update({"status": "finished", "current": count, "total": count, "message": f"快照更新完成，共更新 {count} 只股票"})
+            message = f"快照更新完成，共更新 {count} 只股票"
+            SYNC_STATE.update({"status": "finished", "current": count, "total": count, "message": message})
+            _send_task_notification(user_id, "snapshot", task_name, True, message)
     except Exception as e:
         print(f"Background task failed: {e}")
-        SYNC_STATE.update({"status": "error", "message": str(e)})
+        error_msg = f"任务执行失败: {str(e)}"
+        SYNC_STATE.update({"status": "error", "message": error_msg})
+        _send_task_notification(user_id, "snapshot", task_name, False, error_msg)
 
 @router.post("/data/snapshot/update")
-def update_snapshots(background_tasks: BackgroundTasks, session=Depends(session_dep), user=Depends(require_permission("data.sync"))):
+def update_snapshots(background_tasks: BackgroundTasks, session=Depends(session_dep), user=Depends(require_permission("data.sync")):
     """手动触发快照更新"""
     if SYNC_STATE["status"] == "running":
         raise HTTPException(status_code=400, detail="Task already running")
-    background_tasks.add_task(run_snapshot_update_task)
+    background_tasks.add_task(run_snapshot_update_task, user.id)
     log_user_action(session, user_id=user.id, action_type="run_sync", action_detail="启动快照更新")
     return {"status": "started", "message": "Snapshot update started"}
 
@@ -446,30 +498,56 @@ def delete_preset(name: str, session=Depends(session_dep), user=Depends(auth_dep
 def scan_patterns(payload: PatternScanRequest, session=Depends(session_dep), user=Depends(auth_dep)):
     symbols = payload.symbols or [s.symbol for s in session.exec(select(Stock)).all()]
     results = []
-    for symbol in symbols:
-        stock = session.exec(select(Stock).where(Stock.symbol == symbol)).first()
-        if not stock:
-            continue
-        prices = session.exec(select(DailyPrice).where(DailyPrice.stock_id == stock.id, DailyPrice.trade_date >= payload.start_date, DailyPrice.trade_date <= payload.end_date)).all()
-        if not prices:
-            continue
-        df = pd.DataFrame([p.dict() for p in prices])
-        if df.empty:
-            continue
-        patterns = detect_patterns(df.sort_values("trade_date"), payload.patterns, payload.params)
-        if not patterns:
-            continue
-        for item in patterns:
-            session.add(PatternResult(symbol=symbol, pattern_name=item["pattern_name"], detected_date=item["detected_date"], success_rate=item["success_rate"], score=item["score"]))
-        results.append({"symbol": symbol, "name": stock.name, "patterns": patterns})
-    session.commit()
-    log_user_action(
-        session,
-        user_id=user.id,
-        action_type="pattern_scan",
-        action_detail=f"形态扫描: {','.join(payload.patterns)}, {len(symbols)}只股票"
-    )
-    return results
+    task_name = "形态扫描"
+    try:
+        for symbol in symbols:
+            stock = session.exec(select(Stock).where(Stock.symbol == symbol)).first()
+            if not stock:
+                continue
+            prices = session.exec(select(DailyPrice).where(DailyPrice.stock_id == stock.id, DailyPrice.trade_date >= payload.start_date, DailyPrice.trade_date <= payload.end_date)).all()
+            if not prices:
+                continue
+            df = pd.DataFrame([p.dict() for p in prices])
+            if df.empty:
+                continue
+            patterns = detect_patterns(df.sort_values("trade_date"), payload.patterns, payload.params)
+            if not patterns:
+                continue
+            for item in patterns:
+                session.add(PatternResult(symbol=symbol, pattern_name=item["pattern_name"], detected_date=item["detected_date"], success_rate=item["success_rate"], score=item["score"]))
+            results.append({"symbol": symbol, "name": stock.name, "patterns": patterns})
+        session.commit()
+        pattern_count = sum(len(r["patterns"]) for r in results)
+        message = f"扫描完成，共扫描 {len(symbols)} 只股票，发现 {len(results)} 只股票匹配 {pattern_count} 个形态"
+        create_notification(
+            session,
+            user_id=user.id,
+            notification_type="pattern_scan",
+            title=f"{task_name}成功",
+            content=message,
+            link_url="/patterns",
+            severity="success",
+        )
+        log_user_action(
+            session,
+            user_id=user.id,
+            action_type="pattern_scan",
+            action_detail=f"形态扫描: {','.join(payload.patterns)}, {len(symbols)}只股票"
+        )
+        return results
+    except Exception as e:
+        session.rollback()
+        error_msg = f"{task_name}失败: {str(e)}"
+        create_notification(
+            session,
+            user_id=user.id,
+            notification_type="pattern_scan",
+            title=f"{task_name}失败",
+            content=error_msg,
+            link_url="/patterns",
+            severity="error",
+        )
+        raise HTTPException(status_code=500, detail=error_msg)
 
 @router.get("/patterns/library")
 def list_patterns():
@@ -535,42 +613,68 @@ def run_strategy_backtest(payload: BacktestRequest, session=Depends(session_dep)
     if payload.strategy_name not in strategy_map:
         raise HTTPException(status_code=400, detail="策略不存在")
     results = []
-    for symbol in payload.symbols:
-        stock = session.exec(select(Stock).where(Stock.symbol == symbol)).first()
-        if not stock:
-            continue
-        prices = session.exec(select(DailyPrice).where(DailyPrice.stock_id == stock.id, DailyPrice.trade_date >= payload.start_date, DailyPrice.trade_date <= payload.end_date)).all()
-        if not prices:
-            continue
-        df = pd.DataFrame([p.dict() for p in prices])
-        if df.empty:
-            continue
-        df = df.sort_values("trade_date")
-        strategy_func = strategy_map[payload.strategy_name]
-        allowed_params = {k: v for k, v in payload.parameters.items() if k in inspect.signature(strategy_func).parameters}
-        signal = strategy_func(df, **allowed_params)
-        result = run_backtest(df, signal)
-        metrics = result["metrics"]
-        session.add(BacktestResult(
-            strategy_name=payload.strategy_name,
-            symbol=symbol,
-            start_date=payload.start_date,
-            end_date=payload.end_date,
-            annual_return=metrics["annual_return"],
-            max_drawdown=metrics["max_drawdown"],
-            sharpe=metrics["sharpe"],
-            win_rate=metrics["win_rate"],
-            profit_factor=metrics["profit_factor"],
-        ))
-        results.append({"symbol": symbol, **metrics, "equity_curve": result["equity_curve"], "dates": result["dates"]})
-    session.commit()
-    log_user_action(
-        session,
-        user_id=user.id,
-        action_type="run_backtest",
-        action_detail=f"运行回测: {payload.strategy_name}, {len(payload.symbols)}只股票, {payload.start_date}~{payload.end_date}"
-    )
-    return results
+    task_name = "策略回测"
+    try:
+        for symbol in payload.symbols:
+            stock = session.exec(select(Stock).where(Stock.symbol == symbol)).first()
+            if not stock:
+                continue
+            prices = session.exec(select(DailyPrice).where(DailyPrice.stock_id == stock.id, DailyPrice.trade_date >= payload.start_date, DailyPrice.trade_date <= payload.end_date)).all()
+            if not prices:
+                continue
+            df = pd.DataFrame([p.dict() for p in prices])
+            if df.empty:
+                continue
+            df = df.sort_values("trade_date")
+            strategy_func = strategy_map[payload.strategy_name]
+            allowed_params = {k: v for k, v in payload.parameters.items() if k in inspect.signature(strategy_func).parameters}
+            signal = strategy_func(df, **allowed_params)
+            result = run_backtest(df, signal)
+            metrics = result["metrics"]
+            session.add(BacktestResult(
+                strategy_name=payload.strategy_name,
+                symbol=symbol,
+                start_date=payload.start_date,
+                end_date=payload.end_date,
+                annual_return=metrics["annual_return"],
+                max_drawdown=metrics["max_drawdown"],
+                sharpe=metrics["sharpe"],
+                win_rate=metrics["win_rate"],
+                profit_factor=metrics["profit_factor"],
+            ))
+            results.append({"symbol": symbol, **metrics, "equity_curve": result["equity_curve"], "dates": result["dates"]})
+        session.commit()
+        avg_return = sum(r["annual_return"] for r in results) / len(results) if results else 0
+        message = f"回测完成，{payload.strategy_name} 策略共回测 {len(results)} 只股票，平均年化收益: {avg_return:.2%}"
+        create_notification(
+            session,
+            user_id=user.id,
+            notification_type="backtest",
+            title=f"{task_name}成功",
+            content=message,
+            link_url="/backtest",
+            severity="success",
+        )
+        log_user_action(
+            session,
+            user_id=user.id,
+            action_type="run_backtest",
+            action_detail=f"运行回测: {payload.strategy_name}, {len(payload.symbols)}只股票, {payload.start_date}~{payload.end_date}"
+        )
+        return results
+    except Exception as e:
+        session.rollback()
+        error_msg = f"{task_name}失败: {str(e)}"
+        create_notification(
+            session,
+            user_id=user.id,
+            notification_type="backtest",
+            title=f"{task_name}失败",
+            content=error_msg,
+            link_url="/backtest",
+            severity="error",
+        )
+        raise HTTPException(status_code=500, detail=error_msg)
 
 @router.post("/export")
 def export_data(payload: ExportRequest, session=Depends(session_dep), user=Depends(auth_dep)):
@@ -598,7 +702,6 @@ def export_data(payload: ExportRequest, session=Depends(session_dep), user=Depen
     buffer.seek(0)
     return StreamingResponse(buffer, media_type="text/csv", headers={"Content-Disposition": "attachment; filename=export.csv"})
 
-@router.get("/system/logs")
 @router.get("/system/logs")
 def get_system_logs(session=Depends(session_dep), limit: int = 100, offset: int = 0):
     query = select(DataSyncLog).order_by(DataSyncLog.created_at.desc())
@@ -680,27 +783,37 @@ from app.services.index_service import (
 from app.services.index_sync import sync_index_list, sync_index_daily
 from app.models import IndexProduct
 
-def run_sync_index_list_task():
+def run_sync_index_list_task(user_id: int = None):
     global SYNC_STATE
-    SYNC_STATE.update({"status": "running", "type": "index_list", "current": 0, "total": 0, "message": "正在初始化指数/ETF产品..."})
+    SYNC_STATE.update({"status": "running", "type": "index_list", "current": 0, "total": 0, "message": "正在初始化指数/ETF产品...", "user_id": user_id})
+    task_name = "指数/ETF产品同步"
     try:
         with get_session() as session:
             count = sync_index_list(session, progress_callback=update_progress)
-            SYNC_STATE.update({"status": "finished", "current": count, "total": count, "message": f"指数/ETF产品初始化完成，共 {count} 个"})
+            message = f"指数/ETF产品初始化完成，共 {count} 个"
+            SYNC_STATE.update({"status": "finished", "current": count, "total": count, "message": message})
+            _send_task_notification(user_id, "index_list", task_name, True, message)
     except Exception as e:
         print(f"Background task failed: {e}")
-        SYNC_STATE.update({"status": "error", "message": f"任务执行失败: {str(e)}"})
+        error_msg = f"任务执行失败: {str(e)}"
+        SYNC_STATE.update({"status": "error", "message": error_msg})
+        _send_task_notification(user_id, "index_list", task_name, False, error_msg)
 
-def run_sync_index_daily_task(codes, start_date, end_date, sync_type):
+def run_sync_index_daily_task(codes, start_date, end_date, sync_type, user_id: int = None):
     global SYNC_STATE
-    SYNC_STATE.update({"status": "running", "type": "index_daily", "current": 0, "total": 0, "message": "正在启动..."})
+    SYNC_STATE.update({"status": "running", "type": "index_daily", "current": 0, "total": 0, "message": "正在启动...", "user_id": user_id})
+    task_name = "指数/ETF日线同步"
     try:
         with get_session() as session:
             count = sync_index_daily(session, codes, start_date, end_date, sync_type, progress_callback=update_progress)
-            SYNC_STATE.update({"status": "finished", "current": count, "total": max(count, 1), "message": f"指数/ETF日线同步完成，共 {count} 条记录"})
+            message = f"指数/ETF日线同步完成，共 {count} 条记录"
+            SYNC_STATE.update({"status": "finished", "current": count, "total": max(count, 1), "message": message})
+            _send_task_notification(user_id, "index_daily", task_name, True, message)
     except Exception as e:
         print(f"Background task failed: {e}")
-        SYNC_STATE.update({"status": "error", "message": f"任务执行失败: {str(e)}"})
+        error_msg = f"任务执行失败: {str(e)}"
+        SYNC_STATE.update({"status": "error", "message": error_msg})
+        _send_task_notification(user_id, "index_daily", task_name, False, error_msg)
 
 @router.get("/index/list")
 def list_indices(
@@ -766,11 +879,11 @@ def index_constituents(code: str, session=Depends(session_dep)):
     return result
 
 @router.post("/data/sync/index/products")
-def sync_index_products(background_tasks: BackgroundTasks, session=Depends(session_dep), user=Depends(require_permission("data.sync"))):
+def sync_index_products(background_tasks: BackgroundTasks, session=Depends(session_dep), user=Depends(require_permission("data.sync")):
     """初始化指数/ETF产品列表"""
     if SYNC_STATE["status"] == "running":
         raise HTTPException(status_code=400, detail="Task already running")
-    background_tasks.add_task(run_sync_index_list_task)
+    background_tasks.add_task(run_sync_index_list_task, user.id)
     log_user_action(session, user_id=user.id, action_type="run_sync", action_detail="启动指数/ETF产品同步")
     return {"status": "started", "message": "Index products sync started"}
 
@@ -789,7 +902,7 @@ def sync_index_daily_data(
     if not codes:
         raise HTTPException(status_code=400, detail="无可同步指数/ETF")
     
-    background_tasks.add_task(run_sync_index_daily_task, codes, payload.start_date, payload.end_date, payload.sync_type)
+    background_tasks.add_task(run_sync_index_daily_task, codes, payload.start_date, payload.end_date, payload.sync_type, user.id)
     log_user_action(
         session,
         user_id=user.id,
@@ -985,3 +1098,239 @@ def get_my_permissions(user=Depends(auth_dep), session=Depends(session_dep)):
         roles = session.exec(select(Role).where(Role.id.in_(role_ids))).all()
         role_names = [r.name for r in roles]
     return {"permissions": sorted(perms), "roles": role_names}
+
+# ==================== 通知中心接口 ====================
+
+@router.get("/notifications", response_model=NotificationListResponse)
+def list_notifications(
+    user=Depends(auth_dep),
+    session=Depends(session_dep),
+    notification_type: Optional[str] = None,
+    is_read: Optional[bool] = None,
+    start_date: Optional[date] = None,
+    end_date: Optional[date] = None,
+    limit: int = Query(20, ge=1, le=200),
+    offset: int = Query(0, ge=0),
+):
+    query = select(Notification).where(Notification.user_id == user.id)
+    if notification_type:
+        query = query.where(Notification.type == notification_type)
+    if is_read is not None:
+        query = query.where(Notification.is_read == is_read)
+    if start_date:
+        query = query.where(Notification.created_at >= start_date)
+    if end_date:
+        query = query.where(Notification.created_at <= end_date + timedelta(days=1))
+    query = query.order_by(Notification.created_at.desc())
+    total = len(session.exec(query).all())
+    notifications = session.exec(query.offset(offset).limit(limit)).all()
+    return {"total": total, "items": notifications}
+
+@router.get("/notifications/unread", response_model=NotificationUnreadResponse)
+def get_unread_count(user=Depends(auth_dep), session=Depends(session_dep)):
+    count = len(session.exec(
+        select(Notification).where(
+            Notification.user_id == user.id,
+            Notification.is_read == False,
+        )
+    ).all())
+    return {"unread_count": count}
+
+@router.post("/notifications/mark_read")
+def mark_notifications_read(
+    payload: NotificationMarkReadRequest,
+    user=Depends(auth_dep),
+    session=Depends(session_dep),
+):
+    if payload.mark_all:
+        notifications = session.exec(
+            select(Notification).where(
+                Notification.user_id == user.id,
+                Notification.is_read == False,
+            )
+        ).all()
+    elif payload.ids:
+        notifications = session.exec(
+            select(Notification).where(
+                Notification.user_id == user.id,
+                Notification.id.in_(payload.ids),
+            )
+        ).all()
+    else:
+        raise HTTPException(status_code=400, detail="请指定要标记的通知ID或标记全部")
+    for n in notifications:
+        n.is_read = True
+    session.commit()
+    log_user_action(session, user_id=user.id, action_type="mark_read", action_detail=f"标记 {len(notifications)} 条通知为已读")
+    return {"status": "ok", "marked_count": len(notifications)}
+
+@router.delete("/notifications")
+def delete_notifications(
+    payload: NotificationDeleteRequest,
+    user=Depends(auth_dep),
+    session=Depends(session_dep),
+):
+    notifications = session.exec(
+        select(Notification).where(
+            Notification.user_id == user.id,
+            Notification.id.in_(payload.ids),
+        )
+    ).all()
+    count = len(notifications)
+    for n in notifications:
+        session.delete(n)
+    session.commit()
+    log_user_action(session, user_id=user.id, action_type="delete_notification", action_detail=f"删除 {count} 条通知")
+    return {"status": "ok", "deleted_count": count}
+
+@router.get("/notifications/preferences", response_model=NotificationPreferenceResponse)
+def get_notification_preferences(user=Depends(auth_dep), session=Depends(session_dep)):
+    prefs = get_all_preferences(session, user.id)
+    return {
+        "preferences": [
+            {
+                "id": p.id,
+                "notification_type": p.notification_type,
+                "enabled": p.enabled,
+                "threshold_up": p.threshold_up,
+                "threshold_down": p.threshold_down,
+            }
+            for p in prefs
+        ],
+        "available_types": NOTIFICATION_TYPES,
+    }
+
+@router.put("/notifications/preferences", response_model=NotificationPreferenceResponse)
+def update_notification_preferences(
+    payload: NotificationPreferenceUpdateRequest,
+    user=Depends(auth_dep),
+    session=Depends(session_dep),
+):
+    for item in payload.preferences:
+        pref = session.exec(
+            select(NotificationPreference).where(
+                NotificationPreference.user_id == user.id,
+                NotificationPreference.notification_type == item.notification_type,
+            )
+        ).first()
+        if not pref:
+            pref = NotificationPreference(
+                user_id=user.id,
+                notification_type=item.notification_type,
+                enabled=item.enabled,
+                threshold_up=item.threshold_up,
+                threshold_down=item.threshold_down,
+            )
+        else:
+            pref.enabled = item.enabled
+            pref.threshold_up = item.threshold_up
+            pref.threshold_down = item.threshold_down
+            pref.updated_at = datetime.utcnow()
+        session.add(pref)
+    session.commit()
+    log_user_action(session, user_id=user.id, action_type="update_notification_prefs", action_detail="更新通知偏好设置")
+    prefs = get_all_preferences(session, user.id)
+    return {
+        "preferences": [
+            {
+                "id": p.id,
+                "notification_type": p.notification_type,
+                "enabled": p.enabled,
+                "threshold_up": p.threshold_up,
+                "threshold_down": p.threshold_down,
+            }
+            for p in prefs
+        ],
+        "available_types": NOTIFICATION_TYPES,
+    }
+
+# ==================== 自选股接口 ====================
+
+@router.get("/watchlist", response_model=WatchlistResponse)
+def get_watchlist(user=Depends(auth_dep), session=Depends(session_dep)):
+    watchlist = session.exec(
+        select(UserWatchlist).where(UserWatchlist.user_id == user.id).order_by(UserWatchlist.created_at.desc())
+    ).all()
+    today = datetime.utcnow().date()
+    items = []
+    for w in watchlist:
+        stock = session.exec(select(Stock).where(Stock.symbol == w.symbol)).first()
+        if not stock:
+            continue
+        latest_price = None
+        daily_change = None
+        prices = session.exec(
+            select(DailyPrice).where(
+                DailyPrice.stock_id == stock.id,
+                DailyPrice.trade_date <= today
+            ).order_by(DailyPrice.trade_date.desc()).limit(2)
+        ).all()
+        if len(prices) >= 1:
+            latest_price = prices[0].close
+        if len(prices) >= 2:
+            daily_change = ((prices[0].close - prices[1].close) / prices[1].close) * 100
+        items.append({
+            "id": w.id,
+            "symbol": w.symbol,
+            "name": stock.name,
+            "notes": w.notes,
+            "created_at": w.created_at,
+            "latest_price": latest_price,
+            "daily_change": daily_change,
+        })
+    return {"total": len(items), "items": items}
+
+@router.post("/watchlist")
+def add_to_watchlist(
+    payload: WatchlistAddRequest,
+    user=Depends(auth_dep),
+    session=Depends(session_dep),
+):
+    existing = session.exec(
+        select(UserWatchlist).where(
+            UserWatchlist.user_id == user.id,
+            UserWatchlist.symbol == payload.symbol,
+        )
+    ).first()
+    if existing:
+        raise HTTPException(status_code=400, detail="该股票已在自选股中")
+    stock = session.exec(select(Stock).where(Stock.symbol == payload.symbol)).first()
+    if not stock:
+        raise HTTPException(status_code=404, detail="股票不存在")
+    watchlist_item = UserWatchlist(
+        user_id=user.id,
+        symbol=payload.symbol,
+        notes=payload.notes,
+        created_at=datetime.utcnow(),
+    )
+    session.add(watchlist_item)
+    session.commit()
+    session.refresh(watchlist_item)
+    log_user_action(session, user_id=user.id, action_type="add_watchlist", action_detail=f"添加自选股: {payload.symbol}")
+    return {"status": "ok", "id": watchlist_item.id}
+
+@router.delete("/watchlist")
+def remove_from_watchlist(
+    payload: WatchlistRemoveRequest,
+    user=Depends(auth_dep),
+    session=Depends(session_dep),
+):
+    item = session.exec(
+        select(UserWatchlist).where(
+            UserWatchlist.user_id == user.id,
+            UserWatchlist.symbol == payload.symbol,
+        )
+    ).first()
+    if not item:
+        raise HTTPException(status_code=404, detail="该股票不在自选股中")
+    session.delete(item)
+    session.commit()
+    log_user_action(session, user_id=user.id, action_type="remove_watchlist", action_detail=f"移除自选股: {payload.symbol}")
+    return {"status": "ok"}
+
+# ==================== 内部：价格检查接口 ====================
+
+@router.post("/notifications/check_price_alerts")
+def trigger_price_alerts(session=Depends(session_dep), user=Depends(admin_dep)):
+    notifications = check_price_alerts(session)
+    return {"status": "ok", "generated_count": len(notifications)}
