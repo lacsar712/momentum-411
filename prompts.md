@@ -129,7 +129,7 @@
 ## 四、代码重构(共 2 题)
 
 ### R-01 【代码重构】
-`backend/app/routers.py` 已经膨胀到 458 行混合了同步、数据查询、筛选、形态、回测、导出、日志七大业务领域，请按职责拆分为 `routers/` 子包（每个领域独立模块，例如 `routers/sync.py`、`routers/screening.py` 等），同时把目前散落在路由里的全局 `SYNC_STATE` 状态机以及 `run_sync_*_task` 后台任务封装成独立的 `services/task_manager.py`（支持任务注册、查询、取消、并发互斥），保持现有所有 API 路径和行为完全不变，原有调用方与前端无需修改。
+`backend/app/routers.py` 已经膨胀到混合了同步、数据查询、筛选、形态、回测、导出、日志七大业务领域，请按职责拆分为 `routers/` 子包（每个领域独立模块，例如 `routers/sync.py`、`routers/screening.py` 等），同时把目前散落在路由里的全局 `SYNC_STATE` 状态机以及 `run_sync_*_task` 后台任务封装成独立的 `services/task_manager.py`（支持任务注册、查询、取消、并发互斥），保持现有所有 API 路径和行为完全不变，原有调用方与前端无需修改。
 
 ### R-02 【代码重构】
 对当前 `frontend/src/pages/Screening.tsx`（641 行的大组件，混杂了筛选表单、字段配置、API 调用、Toast、方案管理、Modal、图表渲染、导出逻辑）进行结构化拆分：抽离表单状态到 `useScreeningForm` 自定义 Hook、抽离方案管理到 `usePresets` Hook、把字段配置 `FIELD_CONFIGS` 与渲染逻辑下沉到 `components/screening/` 下的子组件、把请求层封装到 `lib/screeningApi.ts`，保证拆分后页面功能、视觉与交互完全一致，组件可单独被复用与单元测试。
