@@ -22,6 +22,7 @@ import NotificationPreferences from './pages/NotificationPreferences'
 import PortfolioMgmt from './pages/PortfolioMgmt'
 import Risk from './pages/Risk'
 import Recommend from './pages/Recommend'
+import Leaderboard from './pages/Leaderboard'
 import Login from './pages/Login'
 
 function App() {
@@ -69,6 +70,7 @@ function App() {
                     <Route path="/portfolio_mgmt" element={<PortfolioMgmt />} />
                     <Route path="/risk" element={<Risk />} />
                     <Route path="/recommend" element={<Recommend />} />
+                    <Route path="/leaderboard" element={<Leaderboard />} />
                 </Route>
             </Route>
             <Route path="*" element={<Navigate to="/" replace />} />

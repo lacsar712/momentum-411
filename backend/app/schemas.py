@@ -435,3 +435,67 @@ class ScoringCardListResponse(BaseModel):
     """评分卡方案列表响应"""
     total: int
     items: List[ScoringCardInfo]
+
+
+class LeaderboardDimension(BaseModel):
+    """排行榜维度信息"""
+    key: str
+    name: str
+    description: str
+
+
+class LeaderboardItem(BaseModel):
+    """排行榜条目"""
+    symbol: str
+    name: str
+    market: Optional[str] = None
+    industry: Optional[str] = None
+    latest_price: Optional[float] = None
+    change_pct: Optional[float] = None
+    turnover_rate: Optional[float] = None
+    amplitude: Optional[float] = None
+    net_inflow: Optional[float] = None
+    strong_score: Optional[float] = None
+    rsi: Optional[float] = None
+    ma5: Optional[float] = None
+    ma10: Optional[float] = None
+    ma20: Optional[float] = None
+    market_cap: Optional[float] = None
+    pe_ratio: Optional[float] = None
+    pb_ratio: Optional[float] = None
+    momentum: Optional[float] = None
+    volatility: Optional[float] = None
+    liquidity: Optional[float] = None
+    sparkline: Optional[List[Dict[str, Any]]] = None
+
+
+class MarketDistributionItem(BaseModel):
+    """市场分布项"""
+    name: str
+    value: int
+
+
+class LeaderboardResponse(BaseModel):
+    """排行榜响应"""
+    items: List[LeaderboardItem]
+    market_distribution: List[MarketDistributionItem]
+    total: int
+    latest_date: Optional[str] = None
+    dimension: Optional[str] = None
+    period: Optional[int] = None
+    market: Optional[str] = None
+    sort_field: Optional[str] = None
+    sort_order: Optional[str] = None
+
+
+class CustomLeaderboardRequest(BaseModel):
+    """自定义排行榜请求"""
+    sort_field: str
+    sort_order: str = "desc"
+    market: str = "all"
+    limit: int = 50
+
+
+class LeaderboardDimensionListResponse(BaseModel):
+    """排行榜维度列表响应"""
+    dimensions: List[LeaderboardDimension]

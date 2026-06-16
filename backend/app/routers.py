@@ -10,7 +10,7 @@ import pandas as pd
 from sqlmodel import select
 from app.db import get_session
 from app.models import Stock, DailyPrice, ScreeningPreset, PatternResult, BacktestResult, StrategyDefinition, User, DataSyncLog, UserActionLog, Role, Permission, RolePermission, UserRole, Notification, NotificationPreference, UserWatchlist, StockSnapshot, ScoringCardPreset
-from app.schemas import DateRangeRequest, DailyDataRequest, PriceRangeRequest, ScreeningRequest, ScreeningExportRequest, ScreeningResponse, PatternScanRequest, BacktestRequest, ExportRequest, PresetRequest, LoginRequest, AuthResponse, LogDeleteRequest, UserInfoResponse, ChangePasswordRequest, ActivityLogResponse, PreferencesUpdateRequest, PreferencesResponse, RoleCreateRequest, RoleUpdateRequest, UserRoleRequest, RolePermissionRequest, PermissionGroupResponse, UserDetailResponse, RoleDetailResponse, MyPermissionsResponse, NotificationItem, NotificationListResponse, NotificationUnreadResponse, NotificationMarkReadRequest, NotificationDeleteRequest, NotificationPreferenceUpdateRequest, NotificationPreferenceResponse, WatchlistItem, WatchlistAddRequest, WatchlistRemoveRequest, WatchlistResponse, NotificationPreferenceItem, RecommendationRequest, CustomScoreRequest, ScoringCardSaveRequest, ScoringCardInfo, RecommendationResponse, ScoringRuleListResponse, ScoringCardListResponse, StockScoreItem
+from app.schemas import DateRangeRequest, DailyDataRequest, PriceRangeRequest, ScreeningRequest, ScreeningExportRequest, ScreeningResponse, PatternScanRequest, BacktestRequest, ExportRequest, PresetRequest, LoginRequest, AuthResponse, LogDeleteRequest, UserInfoResponse, ChangePasswordRequest, ActivityLogResponse, PreferencesUpdateRequest, PreferencesResponse, RoleCreateRequest, RoleUpdateRequest, UserRoleRequest, RolePermissionRequest, PermissionGroupResponse, UserDetailResponse, RoleDetailResponse, MyPermissionsResponse, NotificationItem, NotificationListResponse, NotificationUnreadResponse, NotificationMarkReadRequest, NotificationDeleteRequest, NotificationPreferenceUpdateRequest, NotificationPreferenceResponse, WatchlistItem, WatchlistAddRequest, WatchlistRemoveRequest, WatchlistResponse, NotificationPreferenceItem, RecommendationRequest, CustomScoreRequest, ScoringCardSaveRequest, ScoringCardInfo, RecommendationResponse, ScoringRuleListResponse, ScoringCardListResponse, StockScoreItem, LeaderboardResponse, LeaderboardDimensionListResponse, CustomLeaderboardRequest
 from app.services.notification import create_notification, get_all_preferences, NOTIFICATION_TYPES, check_price_alerts
 from app.services.data_sync import sync_stock_list, sync_daily, validate_integrity
 from app.services.screening import screen_stocks
@@ -32,6 +32,11 @@ from app.services.concept import (
     get_concept_leaderboard,
     get_stock_concepts,
     get_related_concepts,
+)
+from app.services.leaderboard import (
+    get_leaderboard,
+    get_custom_leaderboard,
+    LEADERBOARD_DIMENSIONS,
 )
 
 router = APIRouter(prefix="/api/v1")
@@ -2031,3 +2036,68 @@ def delete_scoring_card(
     )
 
     return {"status": "ok"}
+
+
+# ==================== 多维排行榜接口 ====================
+
+@router.get("/leaderboard/dimensions", response_model=LeaderboardDimensionListResponse)
+def list_leaderboard_dimensions():
+    """获取排行榜维度列表"""
+    return {"dimensions": LEADERBOARD_DIMENSIONS}
+
+
+@router.get("/leaderboard/{dimension}", response_model=LeaderboardResponse)
+def get_leaderboard_data(
+    dimension: str,
+    period: int = Query(1, ge=1, le=60),
+    market: str = Query("all", pattern="^(all|sh|sz|cyb)$"),
+    limit: int = Query(50, ge=1, le=200),
+    session=Depends(session_dep),
+    user=Depends(auth_dep),
+):
+    """获取指定维度的排行榜"""
+    valid_dimensions = [d["key"] for d in LEADERBOARD_DIMENSIONS]
+    if dimension not in valid_dimensions:
+        raise HTTPException(status_code=400, detail=f"无效的排行榜维度: {dimension}")
+    
+    result = get_leaderboard(
+        session,
+        dimension=dimension,
+        period=period,
+        market=market,
+        limit=limit,
+    )
+    
+    log_user_action(
+        session,
+        user_id=user.id,
+        action_type="leaderboard_view",
+        action_detail=f"查看排行榜: {dimension}, 周期:{period}日, 市场:{market}"
+    )
+    
+    return result
+
+
+@router.post("/leaderboard/custom", response_model=LeaderboardResponse)
+def get_custom_leaderboard_data(
+    payload: CustomLeaderboardRequest,
+    session=Depends(session_dep),
+    user=Depends(auth_dep),
+):
+    """自定义维度排行榜"""
+    result = get_custom_leaderboard(
+        session,
+        sort_field=payload.sort_field,
+        sort_order=payload.sort_order,
+        market=payload.market,
+        limit=payload.limit,
+    )
+    
+    log_user_action(
+        session,
+        user_id=user.id,
+        action_type="leaderboard_custom",
+        action_detail=f"自定义排行榜: {payload.sort_field} {payload.sort_order}, 市场:{payload.market}"
+    )
+    
+    return result
