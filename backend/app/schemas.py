@@ -499,3 +499,64 @@ class CustomLeaderboardRequest(BaseModel):
 class LeaderboardDimensionListResponse(BaseModel):
     """排行榜维度列表响应"""
     dimensions: List[LeaderboardDimension]
+
+# ==================== 股票标签与笔记 Schema ====================
+
+class StockTagCreateRequest(BaseModel):
+    name: str
+    color: Optional[str] = "#3b82f6"
+    description: Optional[str] = None
+
+class StockTagUpdateRequest(BaseModel):
+    name: Optional[str] = None
+    color: Optional[str] = None
+    description: Optional[str] = None
+
+class StockTagResponse(BaseModel):
+    id: int
+    name: str
+    color: str
+    description: Optional[str] = None
+    stock_count: Optional[int] = 0
+    created_at: datetime
+    updated_at: datetime
+
+class StockTagListResponse(BaseModel):
+    total: int
+    items: List[StockTagResponse]
+
+class StockTagAssignRequest(BaseModel):
+    symbol: str
+    tag_ids: List[int]
+
+class StockTagBatchAssignRequest(BaseModel):
+    symbols: List[str]
+    tag_ids: List[int]
+
+class StockNoteCreateRequest(BaseModel):
+    symbol: str
+    title: Optional[str] = None
+    content: str = ""
+
+class StockNoteUpdateRequest(BaseModel):
+    title: Optional[str] = None
+    content: Optional[str] = None
+
+class StockNoteResponse(BaseModel):
+    id: int
+    symbol: str
+    stock_name: Optional[str] = None
+    title: Optional[str] = None
+    content: str
+    created_at: datetime
+    updated_at: datetime
+
+class StockNoteListResponse(BaseModel):
+    total: int
+    items: List[StockNoteResponse]
+
+class StockTagNoteAggregateResponse(BaseModel):
+    symbol: str
+    stock_name: Optional[str] = None
+    tags: List[StockTagResponse]
+    notes: List[StockNoteResponse]

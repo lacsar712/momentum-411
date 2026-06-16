@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { Camera, Database, List, TrendingUp, ArrowRight, AlertCircle } from 'lucide-react'
 import Modal from '../components/Modal'
 import Loading from '../components/Loading'
@@ -22,6 +23,7 @@ interface StockResponse {
 export default function DataCenter() {
     const { pushToast } = useToast()
     const { isAdmin } = useAuth()
+    const navigate = useNavigate()
     const [stocks, setStocks] = useState<StockItem[]>([])
     const [loading, setLoading] = useState(false)
     const [page, setPage] = useState(1)
@@ -294,7 +296,11 @@ export default function DataCenter() {
                     <>
                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
                             {stocks.map((item) => (
-                                <div key={item.symbol} className="group flex items-center justify-between rounded-xl border border-border px-4 py-3 bg-white/50 hover:bg-white hover:shadow-sm hover:border-primary/20 transition-all">
+                                <div
+                                    key={item.symbol}
+                                    onClick={() => navigate(`/stock/${item.symbol}`)}
+                                    className="group flex items-center justify-between rounded-xl border border-border px-4 py-3 bg-white/50 hover:bg-white hover:shadow-sm hover:border-primary/20 transition-all cursor-pointer"
+                                >
                                     <div className="flex items-center gap-3">
                                         <div className={`flex h-8 w-8 items-center justify-center rounded-lg text-xs font-bold ${item.market === 'SH' ? 'bg-red-50 text-red-600' : 'bg-blue-50 text-blue-600'}`}>
                                             {item.market}

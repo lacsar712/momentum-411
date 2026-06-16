@@ -265,3 +265,31 @@ class ScoringCardPreset(SQLModel, table=True):
     is_default: bool = Field(default=False, description="是否为默认方案")
     created_at: datetime = Field(default_factory=datetime.utcnow)
     updated_at: datetime = Field(default_factory=datetime.utcnow)
+
+class StockTag(SQLModel, table=True):
+    """用户自定义股票标签表"""
+    id: Optional[int] = Field(default=None, primary_key=True)
+    user_id: int = Field(foreign_key="user.id", index=True)
+    name: str = Field(index=True, description="标签名称")
+    color: str = Field(default="#3b82f6", description="标签颜色")
+    description: Optional[str] = Field(default=None, description="标签描述")
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+    updated_at: datetime = Field(default_factory=datetime.utcnow)
+
+class StockTagMap(SQLModel, table=True):
+    """股票-标签多对多映射表"""
+    id: Optional[int] = Field(default=None, primary_key=True)
+    user_id: int = Field(foreign_key="user.id", index=True)
+    symbol: str = Field(index=True, description="股票代码")
+    tag_id: int = Field(foreign_key="stocktag.id", index=True)
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+
+class StockNote(SQLModel, table=True):
+    """股票笔记表"""
+    id: Optional[int] = Field(default=None, primary_key=True)
+    user_id: int = Field(foreign_key="user.id", index=True)
+    symbol: str = Field(index=True, description="股票代码")
+    title: Optional[str] = Field(default=None, description="笔记标题")
+    content: str = Field(default="", description="Markdown笔记内容")
+    created_at: datetime = Field(default_factory=datetime.utcnow, index=True)
+    updated_at: datetime = Field(default_factory=datetime.utcnow)

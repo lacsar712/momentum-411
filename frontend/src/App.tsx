@@ -24,6 +24,8 @@ import Risk from './pages/Risk'
 import Recommend from './pages/Recommend'
 import Leaderboard from './pages/Leaderboard'
 import Login from './pages/Login'
+import StockDetail from './pages/StockDetail'
+import Notes from './pages/Notes'
 
 function App() {
     const [token, setToken] = useState(() => localStorage.getItem('momentum_token'))
@@ -71,6 +73,8 @@ function App() {
                     <Route path="/risk" element={<Risk />} />
                     <Route path="/recommend" element={<Recommend />} />
                     <Route path="/leaderboard" element={<Leaderboard />} />
+                    <Route path="/stock/:symbol" element={<StockDetail />} />
+                    <Route path="/notes" element={<Notes />} />
                 </Route>
             </Route>
             <Route path="*" element={<Navigate to="/" replace />} />
