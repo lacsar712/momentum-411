@@ -337,3 +337,101 @@ class RiskAllRequest(RiskBaseRequest):
     confidence_levels: Optional[List[float]] = Field(default_factory=lambda: [0.95, 0.99])
     holding_period: int = Field(default=1, ge=1, le=252)
     rolling_window: int = Field(default=60, ge=20, le=252)
+
+
+# ==================== 智能选股推荐 Schema ====================
+
+class RuleConfig(BaseModel):
+    """单条评分规则配置"""
+    rule_id: str
+    weight: float
+    enabled: bool = True
+
+
+class ScoringRuleInfo(BaseModel):
+    """评分规则信息"""
+    rule_id: str
+    name: str
+    description: str
+    default_weight: float
+    min_value: Optional[float] = None
+    max_value: Optional[float] = None
+    optimal_min: Optional[float] = None
+    optimal_max: Optional[float] = None
+    unit: str = ""
+
+
+class RuleScoreDetailItem(BaseModel):
+    """单条规则的评分详情"""
+    rule_id: str
+    name: str
+    raw_value: float
+    score: float
+    weight: float
+    weighted_score: float
+    enabled: bool
+
+
+class StockScoreItem(BaseModel):
+    """单只股票的评分结果"""
+    symbol: str
+    name: str
+    industry: Optional[str] = None
+    total_score: float
+    max_possible_score: float
+    normalized_score: float
+    rule_details: List[RuleScoreDetailItem]
+
+
+class RecommendationRequest(BaseModel):
+    """Top-N推荐请求"""
+    n: int = Field(default=20, ge=1, le=100)
+    weights: Optional[Dict[str, float]] = None
+    enabled_rules: Optional[Dict[str, bool]] = None
+    industry_filter: Optional[str] = None
+
+
+class CustomScoreRequest(BaseModel):
+    """自定义权重实时评分请求"""
+    weights: Optional[Dict[str, float]] = None
+    enabled_rules: Optional[Dict[str, bool]] = None
+    rule_configs: Optional[List[RuleConfig]] = None
+    n: int = Field(default=20, ge=1, le=100)
+
+
+class ScoringCardSaveRequest(BaseModel):
+    """评分卡方案保存请求"""
+    name: str
+    description: Optional[str] = None
+    weights: Dict[str, float]
+    enabled_rules: Dict[str, bool]
+    is_default: bool = False
+
+
+class ScoringCardInfo(BaseModel):
+    """评分卡方案信息"""
+    id: int
+    name: str
+    description: Optional[str] = None
+    weights: Dict[str, float]
+    enabled_rules: Dict[str, bool]
+    is_default: bool
+    created_at: datetime
+    updated_at: datetime
+
+
+class RecommendationResponse(BaseModel):
+    """推荐结果响应"""
+    total: int
+    items: List[StockScoreItem]
+
+
+class ScoringRuleListResponse(BaseModel):
+    """评分规则列表响应"""
+    rules: List[ScoringRuleInfo]
+
+
+class ScoringCardListResponse(BaseModel):
+    """评分卡方案列表响应"""
+    total: int
+    items: List[ScoringCardInfo]

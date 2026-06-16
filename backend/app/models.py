@@ -252,3 +252,16 @@ class PortfolioHolding(SQLModel, table=True):
     created_at: datetime = Field(default_factory=datetime.utcnow)
     updated_at: datetime = Field(default_factory=datetime.utcnow)
     portfolio: Optional[Portfolio] = Relationship(back_populates="holdings")
+
+
+class ScoringCardPreset(SQLModel, table=True):
+    """评分卡方案表 - 存储用户自定义的评分权重配置"""
+    id: Optional[int] = Field(default=None, primary_key=True)
+    user_id: int = Field(foreign_key="user.id", index=True)
+    name: str = Field(index=True)
+    description: Optional[str] = None
+    weights_json: str = Field(description="评分规则权重配置JSON")
+    enabled_rules_json: Optional[str] = Field(description="规则启用状态JSON")
+    is_default: bool = Field(default=False, description="是否为默认方案")
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+    updated_at: datetime = Field(default_factory=datetime.utcnow)
