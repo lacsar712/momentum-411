@@ -3,14 +3,16 @@ import time
 import os
 from datetime import date
 from contextlib import asynccontextmanager
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, Request, status
+from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 from apscheduler.schedulers.background import BackgroundScheduler
 from app.core.config import settings
-from app.db import init_db, get_session
+from app.db import init_db, get_session, check_db
 from app.routers import router
 from app.services.seed import seed_basic_data, seed_concept_data
 from app.services.data_sync import sync_stock_list, sync_daily
+from app.services.cache import redis_client
 from app.models import Stock
 from sqlmodel import select
 
@@ -57,4 +59,24 @@ async def root():
 
 @app.get("/health")
 async def health_check():
-    return {"status": "ok", "project": settings.PROJECT_NAME}
+    db_ok = check_db()
+    redis_ok = False
+    try:
+        redis_ok = redis_client.ping()
+    except Exception:
+        pass
+
+    overall = "healthy" if (db_ok and redis_ok) else "unhealthy"
+    status_code = status.HTTP_200_OK if (db_ok and redis_ok) else status.HTTP_503_SERVICE_UNAVAILABLE
+
+    return JSONResponse(
+        content={
+            "status": overall,
+            "project": settings.PROJECT_NAME,
+            "components": {
+                "database": "healthy" if db_ok else "unhealthy",
+                "redis": "healthy" if redis_ok else "unhealthy"
+            }
+        },
+        status_code=status_code
+    )

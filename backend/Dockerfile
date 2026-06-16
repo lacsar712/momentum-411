@@ -10,6 +10,7 @@ RUN pip config set global.index-url https://mirrors.aliyun.com/pypi/simple/
 RUN apt-get update && apt-get install -y --no-install-recommends \
     gcc \
     build-essential \
+    curl \
     && rm -rf /var/lib/apt/lists/*
 
 COPY requirements.txt .
